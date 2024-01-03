@@ -1,4 +1,4 @@
-use asteroids_bevy::constants::{WH, WW};
+use asteroids_bevy::constants::{BG_COLOR, WH, WW};
 use asteroids_bevy::player::PlayerPlugin;
 use bevy::{prelude::*, window::close_on_esc};
 
@@ -11,6 +11,9 @@ use bevy_rapier2d::prelude::*;
 
 fn main() {
     App::new()
+        .insert_resource(ClearColor(Color::rgba_u8(
+            BG_COLOR.0, BG_COLOR.1, BG_COLOR.2, 0,
+        )))
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
