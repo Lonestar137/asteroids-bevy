@@ -1,3 +1,4 @@
+use crate::constants::*;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use bevy_cursor::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -22,9 +23,10 @@ impl Plugin for PlayerPlugin {
             .insert_resource(ProjectilePool(Vec::new()))
             .add_systems(Startup, setup_player)
             .add_systems(Startup, setup_projectiles)
+            .add_systems(Update, ship_warp)
             .add_systems(Update, look_at_cursor)
             // .add_systems(Update, movement_system);
-            .add_systems(Update, spawn_projectile)
+            .add_systems(Update, shoot_projectile)
             .add_systems(Update, modify_player_translation);
     }
 }
@@ -41,13 +43,14 @@ fn setup_projectiles(
                 mesh: meshes.add(shape::Circle::default().into()).into(),
                 material: materials.add(ColorMaterial::from(Color::rgb(0.5, 1., 0.5))),
                 transform: Transform {
-                    translation: Vec3::new(500., 500., 1.),
-                    scale: BALL_SIZE.clone(),
+                    translation: Vec3::new(500., 500., 3.),
+                    // scale: BALL_SIZE.clone(),
+                    scale: BALL_SIZE,
                     ..default()
                 },
                 ..default()
             },))
-            .insert(Collider::ball(10.))
+            .insert(Collider::ball(0.6))
             .insert(Sleeping {
                 sleeping: true,
                 ..default()
@@ -147,39 +150,7 @@ fn modify_player_translation(
     }
 }
 
-fn projectile_system(
-    mut commands: Commands,
-    mut spawnpool: ResMut<ProjectilePool>,
-    mut player_query: Query<(&mut ExternalImpulse, &Transform, &Player), With<Player>>,
-    keyboard_input: Res<Input<KeyCode>>,
-    mouse_input: Res<Input<MouseButton>>,
-    cursor: Res<CursorInfo>,
-) {
-    let projectile = spawnpool
-        .0
-        .pop()
-        .expect("Spawnpool projectile should be available.");
-
-    if keyboard_input.pressed(KeyCode::S) || mouse_input.just_pressed(MouseButton::Left) {
-        match cursor.position() {
-            Some(cursor_direction) => {
-                let entity = commands
-                    .entity(projectile)
-                    .remove::<Visibility>()
-                    .insert(Visibility::Visible);
-                let (mut ext_impulse, transform, player) = player_query.single_mut();
-                let direction = cursor_direction - transform.translation.truncate();
-
-                // Apply force in the direction the sprite is facing
-                ext_impulse.impulse = direction.normalize() * player.move_speed;
-                // Adjust magnitude as needed
-            }
-            _ => (),
-        }
-    }
-}
-
-fn spawn_projectile(
+fn shoot_projectile(
     mut projectile_query: Query<
         (
             &mut ExternalImpulse,
@@ -206,7 +177,9 @@ fn spawn_projectile(
                         // Retrieve player position
                         let player_transform = player_query.single();
                         // Set projectile transform to player position
+                        // *transform = *player_transform;
                         *transform = *player_transform;
+                        transform.scale = BALL_SIZE;
 
                         // Calculate direction vector from projectile position to cursor position
                         let direction = cursor_direction - transform.translation.truncate();
@@ -228,5 +201,25 @@ fn spawn_projectile(
                 _ => (),
             }
         }
+    }
+}
+
+fn ship_warp(mut player_query: Query<(&mut Transform, &Sprite), With<Player>>) {
+    let (mut transform, sprite) = player_query.single_mut();
+    let size = sprite
+        .custom_size
+        .expect("Player sprite doesn't have a custom size");
+    let xy = transform.translation.xy();
+    let x_pad = size.x * 0.9;
+    let y_pad = size.y * 0.9;
+
+    if xy.y > TOP_WALL + y_pad {
+        transform.translation.y = BOTTOM_WALL;
+    } else if xy.y < BOTTOM_WALL - y_pad {
+        transform.translation.y = TOP_WALL;
+    } else if xy.x > RIGHT_WALL + x_pad {
+        transform.translation.x = LEFT_WALL;
+    } else if xy.x < LEFT_WALL - x_pad {
+        transform.translation.x = RIGHT_WALL;
     }
 }
