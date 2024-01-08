@@ -1,4 +1,5 @@
 use asteroids_bevy::constants::{BG_COLOR, WH, WW};
+use asteroids_bevy::mobs::MobPlugin;
 use asteroids_bevy::player::PlayerPlugin;
 use bevy::{prelude::*, window::close_on_esc};
 
@@ -32,6 +33,7 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.))
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(PlayerPlugin)
+        .add_plugins(MobPlugin)
         .add_systems(Startup, spawn_camera)
         .add_systems(Update, close_on_esc)
         .run();

@@ -68,9 +68,9 @@ fn setup_projectiles(
             .insert(RigidBody::Dynamic)
             .insert(AdditionalMassProperties::Mass(2.0))
             .insert(GravityScale(0.))
-            .insert(CollisionGroups::new(Group::GROUP_2, Group::NONE))
             .insert(Velocity::zero())
-            .insert(SolverGroups::new(Group::GROUP_2, Group::NONE));
+            .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_3))
+            .insert(SolverGroups::new(Group::GROUP_2, Group::GROUP_3));
 
         // spawnpool.0.push(entity);
     }
@@ -108,8 +108,8 @@ fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .insert(AdditionalMassProperties::Mass(10.0))
         .insert(GravityScale(0.))
-        .insert(CollisionGroups::new(Group::GROUP_1, Group::NONE))
-        .insert(SolverGroups::new(Group::GROUP_1, Group::NONE));
+        .insert(CollisionGroups::new(Group::GROUP_1, Group::GROUP_3))
+        .insert(SolverGroups::new(Group::GROUP_1, Group::GROUP_3));
 }
 
 fn look_at_cursor(cursor: Res<CursorInfo>, mut player_query: Query<&mut Transform, With<Player>>) {
