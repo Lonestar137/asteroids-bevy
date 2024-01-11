@@ -86,7 +86,8 @@ fn setup_projectiles(
             .insert(GravityScale(0.))
             .insert(Velocity::zero())
             .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_3))
-            .insert(SolverGroups::new(Group::GROUP_2, Group::GROUP_3));
+            .insert(SolverGroups::new(Group::GROUP_2, Group::GROUP_3))
+            .insert(ActiveEvents::COLLISION_EVENTS);
 
         // spawnpool.0.push(entity);
     }
