@@ -1,20 +1,21 @@
 use asteroids_bevy::constants::{BG_COLOR, WH, WW};
 use asteroids_bevy::mobs::MobPlugin;
+use asteroids_bevy::parralax::ParallaxBackgroundPlugin;
 use asteroids_bevy::player::PlayerPlugin;
-use bevy::{prelude::*, window::close_on_esc};
 
-use bevy::core_pipeline::{
-    bloom::{BloomCompositeMode, BloomSettings},
-    tonemapping::Tonemapping,
-};
+use bevy::core_pipeline::clear_color::ClearColorConfig;
+use bevy::core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping};
+use bevy::{prelude::*, window::close_on_esc};
+use bevy_hanabi::prelude::*;
 // use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_rapier2d::prelude::*;
 
 fn main() {
     App::new()
-        .insert_resource(ClearColor(Color::rgba_u8(
-            BG_COLOR.0, BG_COLOR.1, BG_COLOR.2, 0,
-        )))
+        // .insert_resource(ClearColor(Color::rgba_u8(
+        //     BG_COLOR.0, BG_COLOR.1, BG_COLOR.2, 0,
+        // )))
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
@@ -32,9 +33,10 @@ fn main() {
         )
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.))
         .add_plugins(RapierDebugRenderPlugin::default())
+        // .add_plugins(HanabiPlugin)
         .add_plugins(PlayerPlugin)
         .add_plugins(MobPlugin)
-        .add_systems(Startup, spawn_camera)
+        .add_plugins(ParallaxBackgroundPlugin)
         .add_systems(Update, close_on_esc)
         .run();
 }
@@ -42,13 +44,18 @@ fn main() {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera2dBundle {
+            transform: Transform::from_translation(Vec3::new(0., 0., 50.)),
             camera: Camera {
-                hdr: true, // 1. HDR is required for bloom
+                hdr: true,
                 ..default()
             },
-            tonemapping: Tonemapping::TonyMcMapface, // 2. Using a tonemapper that desaturates to white is recommended
+            camera_2d: Camera2d {
+                clear_color: ClearColorConfig::Custom(Color::BLACK),
+                ..default()
+            },
+            tonemapping: Tonemapping::None,
             ..default()
         },
-        BloomSettings::default(), // 3. Enable bloom for the camera
+        BloomSettings::default(),
     ));
 }

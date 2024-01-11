@@ -1,6 +1,16 @@
 use crate::constants::*;
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use bevy::ecs::system::ParamSet;
+use bevy::prelude::*;
+use bevy::{
+    core_pipeline::{
+        bloom::BloomSettings, clear_color::ClearColorConfig, tonemapping::Tonemapping,
+    },
+    log::LogPlugin,
+    prelude::*,
+    sprite::MaterialMesh2dBundle,
+};
 use bevy_cursor::prelude::*;
+use bevy_hanabi::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 const BALL_SIZE: Vec3 = Vec3::new(20., 20., 0.);
@@ -8,6 +18,8 @@ const BASE_MOVESPEED: f32 = 50.0;
 
 #[derive(Resource)]
 pub struct ProjectilePool(Vec<Entity>);
+#[derive(Component)]
+pub struct ExhaustEffect;
 #[derive(Component)]
 pub struct Projectile;
 #[derive(Component)]
@@ -23,6 +35,10 @@ impl Plugin for PlayerPlugin {
             .insert_resource(ProjectilePool(Vec::new()))
             .add_systems(Startup, setup_player)
             .add_systems(Startup, setup_projectiles)
+            // .add_systems(
+            //     Update,
+            //     (add_thrust_particles_to_ship, update_thrust_particles),
+            // )
             .add_systems(Update, ship_warp)
             .add_systems(Update, look_at_cursor)
             // .add_systems(Update, movement_system);
@@ -204,22 +220,181 @@ fn shoot_projectile(
     }
 }
 
-fn ship_warp(mut player_query: Query<(&mut Transform, &Sprite), With<Player>>) {
-    let (mut transform, sprite) = player_query.single_mut();
-    let size = sprite
-        .custom_size
-        .expect("Player sprite doesn't have a custom size");
-    let xy = transform.translation.xy();
-    let x_pad = size.x * 0.9;
-    let y_pad = size.y * 0.9;
+fn ship_warp(
+    mut query: ParamSet<(
+        Query<(&mut Transform, &Sprite), With<Player>>,
+        Query<&Transform, With<Camera>>,
+    )>,
+) {
+    let camera_transform = query.p1().single().clone();
+    // let (mut transform, mut sprite) = query.p0().single_mut();
 
-    if xy.y > TOP_WALL + y_pad {
-        transform.translation.y = BOTTOM_WALL;
-    } else if xy.y < BOTTOM_WALL - y_pad {
-        transform.translation.y = TOP_WALL;
-    } else if xy.x > RIGHT_WALL + x_pad {
-        transform.translation.x = LEFT_WALL;
-    } else if xy.x < LEFT_WALL - x_pad {
-        transform.translation.x = RIGHT_WALL;
+    for (mut transform, sprite) in query.p0().iter_mut() {
+        let size = sprite
+            .custom_size
+            .expect("Player sprite doesn't have a custom size");
+        let xy = transform.translation.xy();
+        let x_pad = size.x * 0.9;
+        let y_pad = size.y * 0.9;
+
+        if xy.y > camera_transform.translation.y + TOP_WALL + y_pad {
+            // works
+            transform.translation.y = camera_transform.translation.y + BOTTOM_WALL;
+        } else if xy.y < camera_transform.translation.y + BOTTOM_WALL - y_pad {
+            // works
+            transform.translation.y = camera_transform.translation.y + TOP_WALL;
+        } else if xy.x > camera_transform.translation.x + RIGHT_WALL + x_pad {
+            transform.translation.x = camera_transform.translation.x + LEFT_WALL;
+        } else if xy.x < camera_transform.translation.x + LEFT_WALL - x_pad {
+            transform.translation.x = camera_transform.translation.x + RIGHT_WALL;
+        }
+    }
+}
+
+fn setup_particles(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>) {
+    let mut color_gradient1 = Gradient::new();
+    color_gradient1.add_key(0.0, Vec4::new(4.0, 4.0, 4.0, 1.0));
+    color_gradient1.add_key(0.1, Vec4::new(4.0, 4.0, 0.0, 1.0));
+    color_gradient1.add_key(0.9, Vec4::new(4.0, 0.0, 0.0, 1.0));
+    color_gradient1.add_key(1.0, Vec4::new(4.0, 0.0, 0.0, 0.0));
+
+    let mut size_gradient1 = Gradient::new();
+    size_gradient1.add_key(0.0, Vec2::splat(0.1));
+    size_gradient1.add_key(0.3, Vec2::splat(0.1));
+    size_gradient1.add_key(1.0, Vec2::splat(0.0));
+
+    let writer = ExprWriter::new();
+
+    // Give a bit of variation by randomizing the age per particle. This will
+    // control the starting color and starting size of particles.
+    let age = writer.lit(0.).uniform(writer.lit(0.2)).expr();
+    let init_age = SetAttributeModifier::new(Attribute::AGE, age);
+
+    // Give a bit of variation by randomizing the lifetime per particle
+    let lifetime = writer.lit(0.8).uniform(writer.lit(1.2)).expr();
+    let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
+
+    // Add constant downward acceleration to simulate gravity
+    let accel = writer.lit(Vec3::Y * -8.).expr();
+    let update_accel = AccelModifier::new(accel);
+
+    // Add drag to make particles slow down a bit after the initial explosion
+    let drag = writer.lit(5.).expr();
+    let update_drag = LinearDragModifier::new(drag);
+
+    let init_pos = SetPositionSphereModifier {
+        center: writer.lit(Vec3::ZERO).expr(),
+        radius: writer.lit(2.).expr(),
+        dimension: ShapeDimension::Volume,
+    };
+
+    // Give a bit of variation by randomizing the initial speed
+    let init_vel = SetVelocitySphereModifier {
+        center: writer.lit(Vec3::ZERO).expr(),
+        speed: (writer.rand(ScalarType::Float) * writer.lit(20.) + writer.lit(60.)).expr(),
+    };
+
+    let effect = EffectAsset::new(
+        32768,
+        Spawner::burst(2500.0.into(), 2.0.into()),
+        writer.finish(),
+    )
+    .with_name("firework")
+    .init(init_pos)
+    .init(init_vel)
+    .init(init_age)
+    .init(init_lifetime)
+    .update(update_drag)
+    .update(update_accel)
+    .render(ColorOverLifetimeModifier {
+        gradient: color_gradient1,
+    })
+    .render(SizeOverLifetimeModifier {
+        gradient: size_gradient1,
+        screen_space_size: false,
+    });
+
+    let effect1 = effects.add(effect);
+
+    commands.spawn((
+        Name::new("firework"),
+        ParticleEffectBundle {
+            effect: ParticleEffect::new(effect1),
+            transform: Transform::IDENTITY,
+            ..Default::default()
+        },
+    ));
+}
+
+// Add a Particle Effect to every new Ship created
+fn add_thrust_particles_to_ship(
+    mut commands: Commands,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    // added_ships: Query<Entity, Added<Player>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    added_ships: Query<Entity, With<Player>>,
+) {
+    if keyboard_input.pressed(KeyCode::Space) {
+        for ship_entity in added_ships.iter() {
+            // For Ship exhaust, we store a particle effects on the player
+
+            let writer = ExprWriter::new();
+            let lifetime = writer.lit(0.1).expr();
+            // Gradient for particle color evolution
+            let mut gradient = Gradient::new();
+            gradient.add_key(0.0, Vec4::new(0.5, 0.4, 0.7, 0.8));
+            gradient.add_key(0.5, Vec4::new(1.0, 0.8, 0.0, 0.8));
+            gradient.add_key(1.0, Vec4::ZERO);
+            let init_pos = SetPositionCone3dModifier {
+                height: writer.lit(-5.0).expr(),
+                base_radius: writer.lit(2.).expr(),
+                top_radius: writer.lit(1.).expr(),
+                dimension: ShapeDimension::Volume,
+            };
+            let init_vel = SetVelocitySphereModifier {
+                speed: writer.lit(100.0).uniform(writer.lit(400.0)).expr(),
+                center: writer.lit(Vec3::new(0.0, 1.0, 0.0)).expr(),
+            };
+            let effect = effects.add(
+                EffectAsset::new(16024, Spawner::once(10.0.into(), false), writer.finish())
+                    .with_name("Exhaust")
+                    .init(init_pos)
+                    .init(init_vel)
+                    .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
+                    .render(ColorOverLifetimeModifier { gradient })
+                    .render(SizeOverLifetimeModifier {
+                        gradient: Gradient::constant(Vec2::splat(2.)),
+                        screen_space_size: true,
+                    }),
+            );
+            commands.entity(ship_entity).with_children(|parent| {
+                parent.spawn((
+                    ParticleEffectBundle {
+                        effect: ParticleEffect::new(effect).with_z_layer_2d(Some(10.)),
+                        transform: Transform::from_translation(Vec3::new(0.0, -4.0, 0.0)),
+                        ..default()
+                    },
+                    ExhaustEffect,
+                ));
+            });
+        }
+    }
+}
+
+// Trigger a new particle spawning whenever the Ship Impulse is non-0
+fn update_thrust_particles(
+    // player: Query<(&ActionState<PlayerAction>, &Children), Changed<ActionState<PlayerAction>>>,
+    player: Query<(Entity, &Children), With<Player>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut exhaust_effect: Query<&mut EffectSpawner, With<ExhaustEffect>>,
+) {
+    for (action_state, children) in player.iter() {
+        if keyboard_input.pressed(KeyCode::Space) {
+            for &child in children.iter() {
+                if let Ok(mut spawner) = exhaust_effect.get_mut(child) {
+                    spawner.reset();
+                }
+            }
+        }
     }
 }

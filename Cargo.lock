@@ -176,6 +176,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.79"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -210,7 +216,9 @@ name = "asteroids-bevy"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy-parallax",
  "bevy_cursor",
+ "bevy_hanabi",
  "bevy_pancam",
  "bevy_rapier2d",
  "noise",
@@ -349,6 +357,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4bc7e09282a82a48d70ade0c4c1154b0fd7882a735a39c66766a5d0f4718ea9"
 dependencies = [
  "bevy_internal",
+]
+
+[[package]]
+name = "bevy-parallax"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27d10642d853f37d7addb74e421aad06fec4a749292741e39c9f58986b708e43"
+dependencies = [
+ "bevy",
+ "serde",
 ]
 
 [[package]]
@@ -643,6 +661,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_hanabi"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "127702dc9ccba4eb286c54b3307c0ff18d59b35e4de4e361d8e49fee3abe0b59"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bitflags 2.4.1",
+ "bytemuck",
+ "copyless",
+ "rand 0.8.5",
+ "rand_pcg",
+ "ron",
+ "serde",
+ "thiserror",
+ "typetag",
+]
+
+[[package]]
 name = "bevy_hierarchy"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -823,7 +860,7 @@ dependencies = [
  "bevy_reflect_derive",
  "bevy_utils",
  "downcast-rs",
- "erased-serde",
+ "erased-serde 0.3.31",
  "glam",
  "serde",
  "smallvec",
@@ -1382,6 +1419,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "copyless"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2df960f5d869b2dd8532793fde43eb5427cceb126c929747a26823ab0eeb536"
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1624,6 +1667,15 @@ name = "erased-serde"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c138974f9d5e7fe373eb04df7cae98833802ae4b11c24ac7039a21d5af4b26c"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "erased-serde"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4adbf0983fe06bd3a5c19c8477a637c2389feb0994eca7a59e3b961054aa7c0a"
 dependencies = [
  "serde",
 ]
@@ -2118,6 +2170,12 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
 ]
+
+[[package]]
+name = "inventory"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8573b2b1fb643a372c73b23f4da5f888677feef3305146d68a539250a9bccc7"
 
 [[package]]
 name = "io-kit-sys"
@@ -3001,6 +3059,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_pcg"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
+dependencies = [
+ "rand_core 0.6.4",
+]
+
+[[package]]
 name = "rand_xorshift"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3597,6 +3664,30 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+
+[[package]]
+name = "typetag"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "196976efd4a62737b3a2b662cda76efb448d099b1049613d7a5d72743c611ce0"
+dependencies = [
+ "erased-serde 0.4.1",
+ "inventory",
+ "once_cell",
+ "serde",
+ "typetag-impl",
+]
+
+[[package]]
+name = "typetag-impl"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eea6765137e2414c44c7b1e07c73965a118a72c46148e1e168b3fc9d3ccf3aa"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.44",
+]
 
 [[package]]
 name = "unicode-ident"
