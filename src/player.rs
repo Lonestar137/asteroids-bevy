@@ -26,6 +26,8 @@ pub struct Projectile;
 pub struct Player {
     move_speed: f32,
 }
+#[derive(Component)]
+pub struct Warpable;
 
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
@@ -109,6 +111,7 @@ fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(Player {
             move_speed: BASE_MOVESPEED,
         })
+        .insert(Warpable)
         .insert(ExternalImpulse {
             impulse: Vec2::new(0., 0.),
             torque_impulse: 0.0,
@@ -223,7 +226,7 @@ fn shoot_projectile(
 
 fn ship_warp(
     mut query: ParamSet<(
-        Query<(&mut Transform, &Sprite), With<Player>>,
+        Query<(&mut Transform, &Sprite), With<Warpable>>,
         Query<&Transform, With<Camera>>,
     )>,
 ) {

@@ -1,40 +1,38 @@
-use crate::player::{Player, Projectile};
+use crate::constants::BASE_EXP_PULL;
+use crate::player::{Player, Projectile, Warpable};
+
 use bevy::prelude::*;
-use bevy_rapier2d::{parry::simba::scalar::SupersetOf, prelude::*, rapier::dynamics::RigidBodySet};
+use bevy_rapier2d::prelude::*;
 
 #[derive(Component)]
 pub struct Enemy;
+#[derive(Component)]
+pub struct ExperienceShard(f32);
 
 pub struct MobPlugin;
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
+            .add_systems(PostUpdate, exp_pull_system)
             .add_systems(PostUpdate, kill_on_contact);
         // .add_systems(PostUpdate, display_events);
     }
 }
 
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    asset_server: Res<AssetServer>,
-) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
-        .spawn(
-            (SpriteBundle {
-                texture: asset_server.load("./asteroid1.png"),
-                sprite: Sprite {
-                    // color: Color::rgb(0.25, 0.25, 0.75),
-                    color: Color::rgb(1.2, 1.2, 1.2),
-                    custom_size: Some(Vec2::new(50.0, 50.0)),
-                    ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
+        .spawn(SpriteBundle {
+            texture: asset_server.load("./asteroid1.png"),
+            sprite: Sprite {
+                // color: Color::rgb(0.25, 0.25, 0.75),
+                color: Color::rgb(1.2, 1.2, 1.2),
+                custom_size: Some(Vec2::new(50.0, 50.0)),
                 ..default()
-            }),
-        )
+            },
+            transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
+            ..default()
+        })
         .insert(Enemy)
         .insert(ExternalImpulse {
             impulse: Vec2::new(10., -10.),
@@ -61,8 +59,9 @@ fn kill_on_contact(
     mut bullets: Query<(Entity, &mut Velocity), With<Projectile>>,
     mut enemies: Query<(Entity, &mut Transform), With<Enemy>>,
     mut contact_events: EventReader<CollisionEvent>,
+    asset_server: Res<AssetServer>,
 ) {
-    for contact_event in contact_events.iter() {
+    for contact_event in contact_events.read() {
         if let CollisionEvent::Started(entity1, entity2, _) = contact_event {
             let bullet_entity = bullets.iter_mut().find(|(bullet_entity, _)| {
                 *bullet_entity == *entity1 || *bullet_entity == *entity2
@@ -72,7 +71,7 @@ fn kill_on_contact(
                 .iter_mut()
                 .find(|(enemy_entity, _)| *enemy_entity == *entity1 || *enemy_entity == *entity2);
 
-            if let (Some((bullet_entity, mut bullet_velocity)), Some((enemy_entity, _))) =
+            if let (Some((_, mut bullet_velocity)), Some((enemy_entity, enemy_transform))) =
                 (bullet_entity, enemy_entity)
             {
                 // Apply ricochet effect to bullet
@@ -82,7 +81,62 @@ fn kill_on_contact(
 
                 // Despawn enemy
                 commands.entity(enemy_entity).despawn_recursive();
+                // TODO replace with spawn pool
+                commands
+                    .spawn(SpriteBundle {
+                        texture: asset_server.load("./xp1.png"),
+                        sprite: Sprite {
+                            // color: Color::rgb(0.25, 0.25, 0.75),
+                            color: Color::rgb(1.2, 1.2, 1.2),
+                            custom_size: Some(Vec2::new(50.0, 50.0)),
+                            ..default()
+                        },
+                        // transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
+                        transform: enemy_transform.clone(),
+                        ..default()
+                    })
+                    .insert(ExperienceShard(10.))
+                    .insert(ExternalImpulse {
+                        impulse: Vec2::ZERO,
+                        torque_impulse: 0.07,
+                    })
+                    .insert(Warpable)
+                    .insert(RigidBody::Dynamic)
+                    .insert(Damping {
+                        linear_damping: 0.5,
+                        angular_damping: 0.0,
+                    })
+                    .insert(Sensor)
+                    .insert(AdditionalMassProperties::Mass(1.0))
+                    .insert(GravityScale(0.))
+                    .insert(Velocity::linear(Vec2::ZERO));
             }
+        }
+    }
+}
+
+fn exp_pull_system(
+    mut commands: Commands,
+    mut shards: Query<(Entity, &Transform, &mut Velocity), With<ExperienceShard>>,
+    player: Query<&Transform, (With<Player>, Without<ExperienceShard>)>,
+) {
+    let exp_pull_range: f32 = BASE_EXP_PULL;
+    let exp_absorb_range: f32 = 20.;
+    let player_transform = player.single();
+    for (shard_entity, shard_transform, mut shard_velocity) in shards.iter_mut() {
+        let distance = player_transform
+            .translation
+            .distance(shard_transform.translation);
+
+        if distance < exp_pull_range {
+            info!("Test");
+            let direction = player_transform.translation - shard_transform.translation;
+            let velocity = direction * 2.0; // Adjust speed as needed
+            shard_velocity.linvel = velocity.xy();
+        }
+        if distance < exp_absorb_range {
+            commands.entity(shard_entity).despawn_recursive();
+            info!("Absorbed EXP!");
         }
     }
 }

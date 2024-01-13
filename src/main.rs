@@ -1,12 +1,9 @@
-use asteroids_bevy::constants::{BG_COLOR, WH, WW};
+use asteroids_bevy::constants::{WH, WW};
 use asteroids_bevy::mobs::MobPlugin;
 use asteroids_bevy::parralax::ParallaxBackgroundPlugin;
 use asteroids_bevy::player::PlayerPlugin;
 
-use bevy::core_pipeline::clear_color::ClearColorConfig;
-use bevy::core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping};
 use bevy::{prelude::*, window::close_on_esc};
-use bevy_hanabi::prelude::*;
 // use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_rapier2d::prelude::*;
 
@@ -39,23 +36,4 @@ fn main() {
         .add_plugins(ParallaxBackgroundPlugin)
         .add_systems(Update, close_on_esc)
         .run();
-}
-
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(0., 0., 50.)),
-            camera: Camera {
-                hdr: true,
-                ..default()
-            },
-            camera_2d: Camera2d {
-                clear_color: ClearColorConfig::Custom(Color::BLACK),
-                ..default()
-            },
-            tonemapping: Tonemapping::None,
-            ..default()
-        },
-        BloomSettings::default(),
-    ));
 }
