@@ -21,7 +21,9 @@ pub struct ProjectilePool(Vec<Entity>);
 #[derive(Component)]
 pub struct ExhaustEffect;
 #[derive(Component)]
-pub struct Projectile;
+pub struct Projectile {
+    pub damage: f32,
+}
 #[derive(Component)]
 pub struct Player {
     move_speed: f32,
@@ -73,7 +75,7 @@ fn setup_projectiles(
                 sleeping: true,
                 ..default()
             })
-            .insert(Projectile)
+            .insert(Projectile { damage: 10. })
             .insert(Visibility::Hidden)
             .insert(ExternalImpulse {
                 impulse: Vec2::new(0., 0.),

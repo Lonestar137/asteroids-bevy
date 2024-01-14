@@ -3,10 +3,20 @@ use bevy_parallax::{
     CreateParallaxEvent, LayerData, LayerRepeat, LayerSpeed, ParallaxCameraComponent,
     ParallaxMoveEvent, ParallaxPlugin, ParallaxSystems, RepeatStrategy,
 };
+// /home/jonesgc/repos/dev/asteroids-bevy/assets/Large_1024x1024/Starfields/Starfield_01-1024x1024.png
+const BACKGROUND: &str = "Large_1024x1024/Starfields/Starfield_01-1024x1024.png";
+const BACKGROUND_MIDDLE: &str = "Large_1024x1024/Starfields/Starfield_06-1024x1024_clear.png";
+const BACKGROUND_FRONT: &str = "Large_1024x1024/Starfields/Starfield_06-1024x1024_clear.png";
 
-const BACKGROUND: &str = "star_back.png";
-const BACKGROUND_FRONT: &str = "star_front.png";
-const BACKGROUND_MIDDLE: &str = "star_middle.png";
+// "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024_mod.png"
+const NEBULA_ONE: &str = "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024_mod.png";
+const NEBULA_TWO: &str = "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024_mod2.png";
+const NEBULA_THREE: &str = "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024_mod3.png";
+
+// const BACKGROUND: &str = "star_back.png";
+// const BACKGROUND_FRONT: &str = "star_front.png";
+// const BACKGROUND_MIDDLE: &str = "star_middle.png";
+
 // const BACKGROUND: &str = "cyberpunk_back.png";
 // const BACKGROUND_FRONT: &str = "cyberpunk_front.png";
 // const BACKGROUND_MIDDLE: &str = "cyberpunk_middle.png";
@@ -34,24 +44,24 @@ pub fn initialize_camera_system(
         .id();
     create_parallax.send(CreateParallaxEvent {
         layers_data: vec![
-            LayerData {
-                speed: LayerSpeed::Bidirectional(0.9, 0.9),
-                repeat: LayerRepeat::horizontally(RepeatStrategy::Same),
-                path: BACKGROUND.to_string(),
-                tile_size: Vec2::new(96.0, 160.0),
-                cols: 1,
-                rows: 1,
-                scale: 4.5,
-                z: 0.0,
-                ..default()
-            },
+            // LayerData {
+            //     speed: LayerSpeed::Bidirectional(0.9, 0.9),
+            //     repeat: LayerRepeat::horizontally(RepeatStrategy::Same),
+            //     path: BACKGROUND.to_string(),
+            //     tile_size: Vec2::new(1024., 1024.),
+            //     cols: 1,
+            //     rows: 1,
+            //     scale: 1.0,
+            //     z: 0.2,
+            //     ..default()
+            // },
             LayerData {
                 speed: LayerSpeed::Bidirectional(0.7, 0.85),
                 repeat: LayerRepeat::horizontally(RepeatStrategy::Same),
                 path: BACKGROUND_MIDDLE.to_string(),
-                tile_size: Vec2::new(144.0, 160.0),
-                scale: 4.5,
-                z: 0.5,
+                tile_size: Vec2::new(1024., 1024.),
+                scale: 1.0,
+                z: 0.6,
                 position: Vec2::new(0., 48.),
                 ..default()
             },
@@ -59,9 +69,9 @@ pub fn initialize_camera_system(
                 speed: LayerSpeed::Bidirectional(0.6, 0.8),
                 repeat: LayerRepeat::horizontally(RepeatStrategy::Same),
                 path: BACKGROUND_MIDDLE.to_string(),
-                tile_size: Vec2::new(144.0, 160.0),
-                scale: 4.5,
-                z: 1.0,
+                tile_size: Vec2::new(1024., 1024.),
+                scale: 1.0,
+                z: 0.8,
                 position: Vec2::new(0., -64.),
                 ..default()
             },
@@ -69,11 +79,11 @@ pub fn initialize_camera_system(
                 speed: LayerSpeed::Bidirectional(0.1, 0.3),
                 repeat: LayerRepeat::both(RepeatStrategy::Mirror),
                 path: BACKGROUND_FRONT.to_string(),
-                tile_size: Vec2::new(272.0, 160.0),
+                tile_size: Vec2::new(1024., 1024.),
                 cols: 1,
                 rows: 1,
-                scale: 4.5,
-                z: 2.0,
+                scale: 1.0,
+                z: 1.0,
                 ..default()
             },
         ],

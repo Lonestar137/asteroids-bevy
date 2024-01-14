@@ -3,9 +3,12 @@ use crate::player::{Player, Projectile, Warpable};
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
+use rand::{thread_rng, Rng};
 
 #[derive(Component)]
-pub struct Enemy;
+pub struct Enemy {
+    health: f32,
+}
 #[derive(Component)]
 pub struct ExperienceShard(f32);
 
@@ -16,7 +19,6 @@ impl Plugin for MobPlugin {
         app.add_systems(Startup, setup)
             .add_systems(PostUpdate, exp_pull_system)
             .add_systems(PostUpdate, kill_on_contact);
-        // .add_systems(PostUpdate, display_events);
     }
 }
 
@@ -33,7 +35,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
             ..default()
         })
-        .insert(Enemy)
+        .insert(Enemy { health: 100. })
         .insert(ExternalImpulse {
             impulse: Vec2::new(10., -10.),
             torque_impulse: 0.07,
@@ -56,31 +58,35 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn kill_on_contact(
     mut commands: Commands,
-    mut bullets: Query<(Entity, &mut Velocity), With<Projectile>>,
-    mut enemies: Query<(Entity, &mut Transform), With<Enemy>>,
+    mut bullets: Query<(Entity, &mut Velocity, &Projectile), With<Projectile>>,
+    mut enemies: Query<(Entity, &mut Transform, &mut Enemy), With<Enemy>>,
     mut contact_events: EventReader<CollisionEvent>,
     asset_server: Res<AssetServer>,
 ) {
     for contact_event in contact_events.read() {
         if let CollisionEvent::Started(entity1, entity2, _) = contact_event {
-            let bullet_entity = bullets.iter_mut().find(|(bullet_entity, _)| {
+            let bullet_entity = bullets.iter_mut().find(|(bullet_entity, _, _)| {
                 *bullet_entity == *entity1 || *bullet_entity == *entity2
             });
 
-            let enemy_entity = enemies
-                .iter_mut()
-                .find(|(enemy_entity, _)| *enemy_entity == *entity1 || *enemy_entity == *entity2);
+            let enemy_entity = enemies.iter_mut().find(|(enemy_entity, _, _)| {
+                *enemy_entity == *entity1 || *enemy_entity == *entity2
+            });
 
-            if let (Some((_, mut bullet_velocity)), Some((enemy_entity, enemy_transform))) =
-                (bullet_entity, enemy_entity)
+            if let (
+                Some((_, mut bullet_velocity, projectile_data)),
+                Some((enemy_entity, enemy_transform, mut enemy_data)),
+            ) = (bullet_entity, enemy_entity)
             {
+                let x_rand = thread_rng().gen_range(-100..100) as f32;
+                let y_rand = thread_rng().gen_range(-100..100) as f32;
+                let shard_velocity = Vec2::new(x_rand, y_rand);
+
                 // Apply ricochet effect to bullet
-                // bullet_velocity.linvel = -bullet_velocity.linvel.reflect(Vec3::new(0.0, 1.0, 0.0)); // You might want to adjust the normal based on your game
                 let bul_vel = bullet_velocity.linvel.dot(Vec2::new(0.0, 1.0)) * Vec2::new(0.0, 1.0);
                 bullet_velocity.linvel -= 2.0 * bul_vel;
 
                 // Despawn enemy
-                commands.entity(enemy_entity).despawn_recursive();
                 // TODO replace with spawn pool
                 commands
                     .spawn(SpriteBundle {
@@ -109,7 +115,14 @@ fn kill_on_contact(
                     .insert(Sensor)
                     .insert(AdditionalMassProperties::Mass(1.0))
                     .insert(GravityScale(0.))
-                    .insert(Velocity::linear(Vec2::ZERO));
+                    .insert(Velocity::linear(shard_velocity));
+
+                enemy_data.health -= projectile_data.damage;
+                info!("{:?}", enemy_data.health);
+                if enemy_data.health < 0. {
+                    info!("Deleting entity.");
+                    commands.entity(enemy_entity).despawn_recursive();
+                }
             }
         }
     }
@@ -129,7 +142,6 @@ fn exp_pull_system(
             .distance(shard_transform.translation);
 
         if distance < exp_pull_range {
-            info!("Test");
             let direction = player_transform.translation - shard_transform.translation;
             let velocity = direction * 2.0; // Adjust speed as needed
             shard_velocity.linvel = velocity.xy();
