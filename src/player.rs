@@ -1,6 +1,7 @@
 use crate::constants::*;
 use bevy::ecs::system::ParamSet;
 use bevy::prelude::*;
+use bevy::render::view::WindowSurfaces;
 use bevy::{
     core_pipeline::{
         bloom::BloomSettings, clear_color::ClearColorConfig, tonemapping::Tonemapping,
@@ -8,14 +9,23 @@ use bevy::{
     log::LogPlugin,
     prelude::*,
     sprite::MaterialMesh2dBundle,
+    window::{PrimaryWindow, WindowResized},
 };
 use bevy_cursor::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 const BALL_SIZE: Vec3 = Vec3::new(20., 20., 0.);
-const BASE_MOVESPEED: f32 = 50.0;
+const BASE_MOVESPEED: f32 = 15.0;
+const PROJECTILE_LIMIT: i32 = 40;
 
+#[derive(Resource, Debug)]
+pub struct WindowSize {
+    pub left_wall: f32,
+    pub right_wall: f32,
+    pub top_wall: f32,
+    pub bottom_wall: f32,
+}
 #[derive(Resource)]
 pub struct ProjectilePool(Vec<Entity>);
 #[derive(Component)]
@@ -45,26 +55,27 @@ impl Plugin for PlayerPlugin {
             // )
             .add_systems(Update, ship_warp)
             .add_systems(Update, look_at_cursor)
-            // .add_systems(Update, movement_system);
-            .add_systems(Update, shoot_projectile)
-            .add_systems(Update, modify_player_translation);
+            .add_systems(Update, (shoot_projectile, despawn_projectile))
+            .add_systems(Update, modify_player_translation)
+            .add_systems(FixedUpdate, update_winsize);
     }
 }
 
 fn setup_projectiles(
     mut commands: Commands,
     mut spawnpool: ResMut<ProjectilePool>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    for _ in 1..=2 {
-        commands
-            .spawn((MaterialMesh2dBundle {
-                mesh: meshes.add(shape::Circle::default().into()).into(),
-                material: materials.add(ColorMaterial::from(Color::rgb(0.5, 1., 0.5))),
+    for _ in 1..=PROJECTILE_LIMIT {
+        let entity = commands
+            .spawn((SpriteBundle {
+                texture: asset_server.load("Lasers/08.png"),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::splat(3.)),
+                    ..default()
+                },
                 transform: Transform {
                     translation: Vec3::new(500., 500., 3.),
-                    // scale: BALL_SIZE.clone(),
                     scale: BALL_SIZE,
                     ..default()
                 },
@@ -82,7 +93,7 @@ fn setup_projectiles(
                 torque_impulse: 0.0,
             })
             .insert(Damping {
-                linear_damping: 0.5,
+                linear_damping: 3.5,
                 angular_damping: 5.0,
             })
             .insert(RigidBody::Dynamic)
@@ -91,13 +102,26 @@ fn setup_projectiles(
             .insert(Velocity::zero())
             .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_3))
             .insert(SolverGroups::new(Group::GROUP_2, Group::GROUP_3))
-            .insert(ActiveEvents::COLLISION_EVENTS);
+            .insert(ActiveEvents::COLLISION_EVENTS)
+            .id();
 
-        // spawnpool.0.push(entity);
+        spawnpool.0.push(entity);
     }
 }
 
-fn setup_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_player(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    let primary_window = window_query.single();
+    commands.insert_resource(WindowSize {
+        left_wall: -primary_window.width() / 2.,
+        right_wall: primary_window.width() / 2.,
+        bottom_wall: -primary_window.height() / 2.,
+        top_wall: primary_window.height() / 2.,
+    });
+
     commands
         .spawn(SpriteBundle {
             texture: asset_server.load("./ship2.png"),
@@ -187,53 +211,100 @@ fn shoot_projectile(
     mouse_input: Res<Input<MouseButton>>,
     cursor: Res<CursorInfo>,
 ) {
-    let mut spawn_limit = 1;
+    let mut spawn_limit = PROJECTILE_LIMIT as usize;
     if keyboard_input.pressed(KeyCode::S) || mouse_input.just_pressed(MouseButton::Left) {
         for (i, (mut ext_impulse, mut velocity, mut transform, mut visibility)) in
             projectile_query.iter_mut().enumerate()
         {
-            match cursor.position() {
-                Some(cursor_direction) => {
-                    if i < spawn_limit {
-                        *velocity = Velocity::zero();
-                        // Retrieve player position
-                        let player_transform = player_query.single();
-                        // Set projectile transform to player position
-                        // *transform = *player_transform;
-                        *transform = *player_transform;
-                        transform.scale = BALL_SIZE;
+            if *visibility == Visibility::Hidden {
+                match cursor.position() {
+                    Some(cursor_direction) => {
+                        if i < spawn_limit {
+                            *visibility = Visibility::Visible;
+                            *velocity = Velocity::zero();
+                            // Retrieve player position
+                            let player_transform = player_query.single();
 
-                        // Calculate direction vector from projectile position to cursor position
-                        let direction = cursor_direction - transform.translation.truncate();
+                            // Set projectile transform to player position
+                            *transform = *player_transform;
+                            transform.scale = BALL_SIZE;
 
-                        // Normalize direction vector
-                        let normalized_direction = direction.normalize();
+                            // Calculate direction vector from projectile position to cursor position
+                            let direction = cursor_direction - transform.translation.truncate();
 
-                        // Apply force in the direction of the normalized direction
-                        ext_impulse.impulse = normalized_direction * 10000.0;
+                            // Normalize direction vector
+                            let normalized_direction = direction.normalize();
 
-                        // Update projectile transform to face the cursor direction (optional)
-                        let angle = normalized_direction.y.atan2(normalized_direction.x);
-                        transform.rotation = Quat::from_rotation_z(angle);
+                            // Apply force in the direction of the normalized direction
+                            ext_impulse.impulse = normalized_direction * 10000.0;
 
-                        *visibility = Visibility::Visible;
+                            // Update projectile transform to face the cursor direction
+                            let angle = normalized_direction.y.atan2(normalized_direction.x);
+                            // transform.rotation =
+                            // Quat::from_rotation_arc(-Vec3::Y, angle.to_degrees());
+                            transform.rotate_y(45.);
+                        }
+                        spawn_limit = i;
                     }
-                    spawn_limit = i;
+                    _ => (),
                 }
-                _ => (),
             }
         }
     }
 }
 
+fn despawn_projectile(
+    mut projectile_query: Query<
+        (&mut Velocity, &mut Visibility, &mut Transform),
+        (With<Projectile>, Without<Player>),
+    >,
+) {
+    // let (bullet_velocity, bullet_visibility) =
+    for (mut bullet_velocity, mut bullet_visibility, mut transform) in projectile_query.iter_mut() {
+        if *bullet_visibility == Visibility::Visible {
+            let linvel = bullet_velocity.linvel;
+
+            if linvel.x.abs() < 25.0 && linvel.y.abs() < 25.0 {
+                debug!("Hiding expired projectile");
+                *bullet_visibility = Visibility::Hidden;
+                *bullet_velocity = Velocity::zero();
+                transform.translation = Vec3::new(10000., 100000., -1.);
+            }
+        }
+    }
+}
+
+fn update_winsize(
+    mut win_size: ResMut<WindowSize>,
+    mut resize_event: EventReader<WindowResized>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    for _ in resize_event.read() {
+        let primary_window = window_query.single();
+        win_size.left_wall = -primary_window.width() / 2.;
+        win_size.right_wall = primary_window.width() / 2.;
+        win_size.bottom_wall = -primary_window.height() / 2.;
+        win_size.top_wall = primary_window.height() / 2.;
+        debug!("Window Resized:");
+        debug!("  Width {:?}", primary_window.width());
+        debug!("  Height {:?}", primary_window.height());
+    }
+}
+
 fn ship_warp(
+    // window_query: Query<&Window, With<PrimaryWindow>>,
+    window_query: Res<WindowSize>,
     mut query: ParamSet<(
         Query<(&mut Transform, &Sprite), With<Warpable>>,
         Query<&Transform, With<Camera>>,
     )>,
 ) {
+    let left_wall = window_query.left_wall;
+    let right_wall = window_query.right_wall;
+    let bottom_wall = window_query.bottom_wall;
+    let top_wall = window_query.top_wall;
+
     let camera_transform = query.p1().single().clone();
-    // let (mut transform, mut sprite) = query.p0().single_mut();
 
     for (mut transform, sprite) in query.p0().iter_mut() {
         let size = sprite
@@ -243,16 +314,16 @@ fn ship_warp(
         let x_pad = size.x * 0.9;
         let y_pad = size.y * 0.9;
 
-        if xy.y > camera_transform.translation.y + TOP_WALL + y_pad {
+        if xy.y > camera_transform.translation.y + top_wall + y_pad {
             // works
-            transform.translation.y = camera_transform.translation.y + BOTTOM_WALL;
-        } else if xy.y < camera_transform.translation.y + BOTTOM_WALL - y_pad {
+            transform.translation.y = camera_transform.translation.y + bottom_wall;
+        } else if xy.y < camera_transform.translation.y + bottom_wall - y_pad {
             // works
-            transform.translation.y = camera_transform.translation.y + TOP_WALL;
-        } else if xy.x > camera_transform.translation.x + RIGHT_WALL + x_pad {
-            transform.translation.x = camera_transform.translation.x + LEFT_WALL;
-        } else if xy.x < camera_transform.translation.x + LEFT_WALL - x_pad {
-            transform.translation.x = camera_transform.translation.x + RIGHT_WALL;
+            transform.translation.y = camera_transform.translation.y + top_wall;
+        } else if xy.x > camera_transform.translation.x + right_wall + x_pad {
+            transform.translation.x = camera_transform.translation.x + left_wall;
+        } else if xy.x < camera_transform.translation.x + left_wall - x_pad {
+            transform.translation.x = camera_transform.translation.x + right_wall;
         }
     }
 }

@@ -76,14 +76,15 @@ pub fn initialize_camera_system(
                 ..default()
             },
             LayerData {
-                speed: LayerSpeed::Bidirectional(0.1, 0.3),
-                repeat: LayerRepeat::both(RepeatStrategy::Mirror),
+                speed: LayerSpeed::Bidirectional(0.3, 0.5),
+                repeat: LayerRepeat::both(RepeatStrategy::Same),
                 path: BACKGROUND_FRONT.to_string(),
                 tile_size: Vec2::new(1024., 1024.),
                 cols: 1,
                 rows: 1,
                 scale: 1.0,
                 z: 1.0,
+                position: Vec2::new(0., -324.),
                 ..default()
             },
         ],
@@ -97,9 +98,9 @@ pub fn move_camera_system(
     mut camera_query: Query<Entity, With<Camera>>,
 ) {
     let camera = camera_query.get_single_mut().unwrap();
-    let speed = 9.;
+    let speed = 4.;
     let mut direction = Vec2::ZERO;
-    direction += Vec2::new(0.01, -0.01);
+    direction += Vec2::new(0.008, -0.008);
     // direction += Vec2::new(0.0, -1.0);
     move_event_writer.send(ParallaxMoveEvent {
         // camera_move_speed: direction.normalize_or_zero() * speed,

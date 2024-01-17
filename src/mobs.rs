@@ -1,10 +1,16 @@
-use crate::constants::BASE_EXP_PULL;
-use crate::player::{Player, Projectile, Warpable};
+use std::time::Duration;
 
+use crate::constants::BASE_EXP_PULL;
+use crate::player::{Player, Projectile, Warpable, WindowSize};
+
+use bevy::audio::{Volume, VolumeLevel};
 use bevy::prelude::*;
+use bevy_rapier2d::parry::simba::scalar::SupersetOf;
 use bevy_rapier2d::prelude::*;
 use rand::{thread_rng, Rng};
 
+#[derive(Resource)]
+struct CollisionSound(Handle<AudioSource>);
 #[derive(Component)]
 pub struct Enemy {
     health: f32,
@@ -16,44 +22,17 @@ pub struct MobPlugin;
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
+        app.add_plugins(EnemyWavePlugin)
+            .add_systems(Startup, setup)
             .add_systems(PostUpdate, exp_pull_system)
             .add_systems(PostUpdate, kill_on_contact);
     }
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands
-        .spawn(SpriteBundle {
-            texture: asset_server.load("./asteroid1.png"),
-            sprite: Sprite {
-                // color: Color::rgb(0.25, 0.25, 0.75),
-                color: Color::rgb(1.2, 1.2, 1.2),
-                custom_size: Some(Vec2::new(50.0, 50.0)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
-            ..default()
-        })
-        .insert(Enemy { health: 100. })
-        .insert(ExternalImpulse {
-            impulse: Vec2::new(10., -10.),
-            torque_impulse: 0.07,
-        })
-        .insert(Collider::ball(30.0))
-        .insert(RigidBody::Dynamic)
-        .insert(AdditionalMassProperties::Mass(100.0))
-        .insert(GravityScale(0.))
-        .insert(Velocity::linear(Vec2::new(-100., 0.)))
-        .insert(CollisionGroups::new(
-            Group::GROUP_3,
-            Group::GROUP_1 | Group::GROUP_2,
-        ))
-        .insert(SolverGroups::new(
-            Group::GROUP_3,
-            Group::GROUP_1 | Group::GROUP_2,
-        ))
-        .insert(ActiveEvents::COLLISION_EVENTS);
+    let bullet_collision_sound = asset_server.load("Sounds/hitmarker_2.ogg");
+    // let bullet_collision_sound = asset_server.load("Sounds/breakout_collision.ogg");
+    commands.insert_resource(CollisionSound(bullet_collision_sound));
 }
 
 fn kill_on_contact(
@@ -61,6 +40,7 @@ fn kill_on_contact(
     mut bullets: Query<(Entity, &mut Velocity, &Projectile), With<Projectile>>,
     mut enemies: Query<(Entity, &mut Transform, &mut Enemy), With<Enemy>>,
     mut contact_events: EventReader<CollisionEvent>,
+    sound: Res<CollisionSound>,
     asset_server: Res<AssetServer>,
 ) {
     for contact_event in contact_events.read() {
@@ -81,6 +61,20 @@ fn kill_on_contact(
                 let x_rand = thread_rng().gen_range(-100..100) as f32;
                 let y_rand = thread_rng().gen_range(-100..100) as f32;
                 let shard_velocity = Vec2::new(x_rand, y_rand);
+
+                debug!("Bullet collision");
+                // Play bullet impact sound.
+                let audio_settings = PlaybackSettings {
+                    volume: Volume::new_relative(0.2),
+                    ..default()
+                };
+                // Volume::Relative(VolumeLevel(1.0))
+                commands.spawn(AudioBundle {
+                    source: sound.0.clone(),
+                    // auto-despawn the entity when playback finishes
+                    // settings: PlaybackSettings::DESPAWN,
+                    settings: audio_settings,
+                });
 
                 // Apply ricochet effect to bullet
                 let bul_vel = bullet_velocity.linvel.dot(Vec2::new(0.0, 1.0)) * Vec2::new(0.0, 1.0);
@@ -118,9 +112,8 @@ fn kill_on_contact(
                     .insert(Velocity::linear(shard_velocity));
 
                 enemy_data.health -= projectile_data.damage;
-                info!("{:?}", enemy_data.health);
                 if enemy_data.health < 0. {
-                    info!("Deleting entity.");
+                    info!("Deleting entity. {:?}", enemy_entity);
                     commands.entity(enemy_entity).despawn_recursive();
                 }
             }
@@ -134,7 +127,7 @@ fn exp_pull_system(
     player: Query<&Transform, (With<Player>, Without<ExperienceShard>)>,
 ) {
     let exp_pull_range: f32 = BASE_EXP_PULL;
-    let exp_absorb_range: f32 = 20.;
+    let exp_absorb_range: f32 = 40.;
     let player_transform = player.single();
     for (shard_entity, shard_transform, mut shard_velocity) in shards.iter_mut() {
         let distance = player_transform
@@ -143,12 +136,109 @@ fn exp_pull_system(
 
         if distance < exp_pull_range {
             let direction = player_transform.translation - shard_transform.translation;
-            let velocity = direction * 2.0; // Adjust speed as needed
+            let velocity = direction * 5.0; // Adjust speed as needed
             shard_velocity.linvel = velocity.xy();
         }
         if distance < exp_absorb_range {
             commands.entity(shard_entity).despawn_recursive();
-            info!("Absorbed EXP!");
+            debug!("Absorbed EXP!");
         }
     }
+}
+
+/*
+    Mob plugins
+        Asteroid field
+        Stalkers (light enemy that follows player)
+        Turret (Stationary enemy)
+*/
+
+#[derive(Resource)]
+struct CurrentWave(i32);
+
+struct EnemyWavePlugin;
+impl Plugin for EnemyWavePlugin {
+    fn build(&self, app: &mut App) {
+        // TODO: Spawns a random set of enemies every # minutes.
+        app.insert_resource(CurrentWave(1))
+            .add_systems(Update, spawn_wave);
+    }
+}
+
+fn spawn_wave(
+    mut commands: Commands,
+    player: Query<&Transform, (With<Player>, Without<ExperienceShard>)>,
+    mut wave: ResMut<CurrentWave>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time<Fixed>>,
+    win_size: Res<WindowSize>,
+) {
+    let player_transform = player.single();
+    let mut rng = rand::thread_rng();
+    let elapsed_seconds = time.elapsed_seconds();
+    let elapsed_minutes = elapsed_seconds / 60.;
+
+    if elapsed_seconds > 10. && wave.0 == 1 {
+        debug!("Wave 1 spawned.");
+        for _ in 0..40 {
+            let random_x = rng.gen_range(-1000. ..1000.) as f32;
+            let random_y = rng.gen_range(-1000. ..1000.) as f32;
+            let direction = player_transform.translation.xy() - Vec2::new(random_x, random_y);
+            let left_or_right = if rng.gen_bool(0.5) {
+                let left_pad = win_size.left_wall;
+                rng.gen_range(left_pad * 1.2..left_pad) as f32
+            } else {
+                let right_pad = win_size.right_wall;
+                rng.gen_range(right_pad..right_pad * 1.2) as f32
+            };
+            commands
+                .spawn(SpriteBundle {
+                    texture: asset_server.load("./asteroid1.png"),
+                    sprite: Sprite {
+                        // color: Color::rgb(0.25, 0.25, 0.75),
+                        color: Color::rgb(1.2, 1.2, 1.2),
+                        custom_size: Some(Vec2::new(50.0, 50.0)),
+                        ..default()
+                    },
+                    // transform: Transform::from_translation(Vec3::new(-200., -400., 2.)),
+                    transform: Transform::from_translation(Vec3::new(left_or_right, random_y, 2.)),
+                    ..default()
+                })
+                .insert(Enemy { health: 100. })
+                .insert(Warpable)
+                .insert(ExternalImpulse {
+                    impulse: direction * 0.02,
+                    torque_impulse: 0.07,
+                })
+                .insert(Collider::ball(30.0))
+                .insert(RigidBody::Dynamic)
+                .insert(AdditionalMassProperties::Mass(100.0))
+                .insert(GravityScale(0.))
+                .insert(Velocity::linear(Vec2::new(0., 0.)))
+                .insert(CollisionGroups::new(
+                    Group::GROUP_3,
+                    Group::GROUP_1 | Group::GROUP_2,
+                ))
+                .insert(SolverGroups::new(
+                    Group::GROUP_3,
+                    Group::GROUP_1 | Group::GROUP_2,
+                ))
+                .insert(ActiveEvents::COLLISION_EVENTS);
+        }
+
+        wave.0 += 1;
+    }
+}
+
+struct StalkerEnemyPlugin;
+impl Plugin for StalkerEnemyPlugin {
+    fn build(&self, app: &mut App) {
+        debug!("");
+        app.add_systems(FixedUpdate, spawn_stalker);
+    }
+}
+
+fn spawn_stalker(mut commands: Commands, keyboard_input: Res<Input<KeyCode>>) {
+    // TODO: replace with a clock.
+    if keyboard_input.just_pressed(KeyCode::S) {}
 }
