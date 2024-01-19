@@ -1,4 +1,7 @@
 use crate::constants::*;
+use crate::game_ui::GameInterfacePlugin;
+use crate::mobs::Enemy;
+
 use bevy::ecs::system::ParamSet;
 use bevy::prelude::*;
 use bevy::render::view::WindowSurfaces;
@@ -14,11 +17,18 @@ use bevy::{
 use bevy_cursor::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_rapier2d::prelude::*;
+use std::time::{Duration, Instant};
 
 const BALL_SIZE: Vec3 = Vec3::new(20., 20., 0.);
-const BASE_MOVESPEED: f32 = 15.0;
+const BASE_MOVESPEED: f32 = 150.0;
 const PROJECTILE_LIMIT: i32 = 40;
+const COOLDOWN_DURATION_MS: u64 = 200;
 
+#[derive(Resource, Debug)]
+struct ShootingCooldown {
+    last_shot_time: Instant,
+    cooldown_duration: Duration,
+}
 #[derive(Resource, Debug)]
 pub struct WindowSize {
     pub left_wall: f32,
@@ -36,6 +46,8 @@ pub struct Projectile {
 }
 #[derive(Component)]
 pub struct Player {
+    pub health_current: f32,
+    pub health_max: f32,
     move_speed: f32,
 }
 #[derive(Component)]
@@ -46,6 +58,11 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         // app.add_systems(FixedUpdate, )
         app.add_plugins(CursorInfoPlugin)
+            .add_plugins(GameInterfacePlugin)
+            .insert_resource(ShootingCooldown {
+                last_shot_time: Instant::now(),
+                cooldown_duration: Duration::from_millis(COOLDOWN_DURATION_MS),
+            })
             .insert_resource(ProjectilePool(Vec::new()))
             .add_systems(Startup, setup_player)
             .add_systems(Startup, setup_projectiles)
@@ -54,9 +71,10 @@ impl Plugin for PlayerPlugin {
             //     (add_thrust_particles_to_ship, update_thrust_particles),
             // )
             .add_systems(Update, ship_warp)
-            .add_systems(Update, look_at_cursor)
             .add_systems(Update, (shoot_projectile, despawn_projectile))
-            .add_systems(Update, modify_player_translation)
+            .add_systems(Update, handle_player_collision)
+            .add_systems(FixedUpdate, look_at_cursor)
+            .add_systems(FixedUpdate, modify_player_translation)
             .add_systems(FixedUpdate, update_winsize);
     }
 }
@@ -135,6 +153,8 @@ fn setup_player(
             ..default()
         })
         .insert(Player {
+            health_current: 1000.,
+            health_max: 1000.,
             move_speed: BASE_MOVESPEED,
         })
         .insert(Warpable)
@@ -210,43 +230,50 @@ fn shoot_projectile(
     keyboard_input: Res<Input<KeyCode>>,
     mouse_input: Res<Input<MouseButton>>,
     cursor: Res<CursorInfo>,
+    mut cooldown: ResMut<ShootingCooldown>,
 ) {
     let mut spawn_limit = PROJECTILE_LIMIT as usize;
     if keyboard_input.pressed(KeyCode::S) || mouse_input.just_pressed(MouseButton::Left) {
-        for (i, (mut ext_impulse, mut velocity, mut transform, mut visibility)) in
-            projectile_query.iter_mut().enumerate()
-        {
-            if *visibility == Visibility::Hidden {
-                match cursor.position() {
-                    Some(cursor_direction) => {
-                        if i < spawn_limit {
-                            *visibility = Visibility::Visible;
-                            *velocity = Velocity::zero();
-                            // Retrieve player position
-                            let player_transform = player_query.single();
+        let current_time = Instant::now();
+        let time_since_last_shot = current_time - cooldown.last_shot_time;
 
-                            // Set projectile transform to player position
-                            *transform = *player_transform;
-                            transform.scale = BALL_SIZE;
+        if time_since_last_shot >= cooldown.cooldown_duration {
+            for (i, (mut ext_impulse, mut velocity, mut transform, mut visibility)) in
+                projectile_query.iter_mut().enumerate()
+            {
+                if *visibility == Visibility::Hidden {
+                    match cursor.position() {
+                        Some(cursor_direction) => {
+                            if i < spawn_limit {
+                                *visibility = Visibility::Visible;
+                                *velocity = Velocity::zero();
+                                // Retrieve player position
+                                let player_transform = player_query.single();
 
-                            // Calculate direction vector from projectile position to cursor position
-                            let direction = cursor_direction - transform.translation.truncate();
+                                // Set projectile transform to player position
+                                *transform = *player_transform;
+                                transform.scale = BALL_SIZE;
 
-                            // Normalize direction vector
-                            let normalized_direction = direction.normalize();
+                                // Calculate direction vector from projectile position to cursor position
+                                let direction = cursor_direction - transform.translation.truncate();
 
-                            // Apply force in the direction of the normalized direction
-                            ext_impulse.impulse = normalized_direction * 10000.0;
+                                // Normalize direction vector
+                                let normalized_direction = direction.normalize();
 
-                            // Update projectile transform to face the cursor direction
-                            let angle = normalized_direction.y.atan2(normalized_direction.x);
-                            // transform.rotation =
-                            // Quat::from_rotation_arc(-Vec3::Y, angle.to_degrees());
-                            transform.rotate_y(45.);
+                                // Apply force in the direction of the normalized direction
+                                ext_impulse.impulse = normalized_direction * 10000.0;
+
+                                // Update projectile transform to face the cursor direction
+                                let angle = normalized_direction.y.atan2(normalized_direction.x);
+                                // transform.rotation =
+                                // Quat::from_rotation_arc(-Vec3::Y, angle.to_degrees());
+                                transform.rotate_y(45.);
+                                cooldown.last_shot_time = current_time;
+                            }
+                            spawn_limit = i;
                         }
-                        spawn_limit = i;
+                        _ => (),
                     }
-                    _ => (),
                 }
             }
         }
@@ -324,6 +351,40 @@ fn ship_warp(
             transform.translation.x = camera_transform.translation.x + left_wall;
         } else if xy.x < camera_transform.translation.x + left_wall - x_pad {
             transform.translation.x = camera_transform.translation.x + right_wall;
+        }
+    }
+}
+
+fn handle_player_collision(
+    mut commands: Commands,
+    // mut bullets: Query<(Entity, &mut Velocity, &Projectile), With<EnemyProjectile>>,
+    mut player: Query<(Entity, &mut Player)>,
+    mut enemies: Query<(Entity, &mut Enemy), With<Enemy>>,
+    mut contact_events: EventReader<CollisionEvent>,
+) {
+    for contact_event in contact_events.read() {
+        if let CollisionEvent::Started(entity1, entity2, x) = contact_event {
+            let player = player.iter_mut().find(|(player_entity, _)| {
+                *player_entity == *entity1 || *player_entity == *entity2
+            });
+
+            let enemy = enemies
+                .iter_mut()
+                .find(|(enemy_entity, _)| *enemy_entity == *entity1 || *enemy_entity == *entity2);
+
+            if let (Some((player_entity, mut player_data)), Some((enemy_entity, mut enemy_data))) =
+                (player, enemy)
+            {
+                // enemy_data.health -= player_data.collision_damage;
+                player_data.health_current -= enemy_data.collision_damage;
+                if player_data.health_current < 0. {
+                    info!("Deleting entity. {:?}", enemy_entity);
+                    // TODO: end the game.
+                    commands.entity(player_entity).remove::<Visibility>();
+                    commands.entity(player_entity).insert(Visibility::Hidden);
+                    // commands.entity(player_entity).despawn_recursive();
+                }
+            }
         }
     }
 }

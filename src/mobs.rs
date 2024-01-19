@@ -13,7 +13,8 @@ use rand::{thread_rng, Rng};
 struct CollisionSound(Handle<AudioSource>);
 #[derive(Component)]
 pub struct Enemy {
-    health: f32,
+    pub health: f32,
+    pub collision_damage: f32,
 }
 #[derive(Component)]
 pub struct ExperienceShard(f32);
@@ -204,7 +205,10 @@ fn spawn_wave(
                     transform: Transform::from_translation(Vec3::new(left_or_right, random_y, 2.)),
                     ..default()
                 })
-                .insert(Enemy { health: 100. })
+                .insert(Enemy {
+                    health: 100.,
+                    collision_damage: 10.,
+                })
                 .insert(Warpable)
                 .insert(ExternalImpulse {
                     impulse: direction * 0.02,
