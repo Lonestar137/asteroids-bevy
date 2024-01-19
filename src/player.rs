@@ -48,6 +48,9 @@ pub struct Projectile {
 pub struct Player {
     pub health_current: f32,
     pub health_max: f32,
+    pub exp_current: f32,
+    pub exp_max: f32,
+    pub level: u16,
     move_speed: f32,
 }
 #[derive(Component)]
@@ -153,8 +156,11 @@ fn setup_player(
             ..default()
         })
         .insert(Player {
-            health_current: 1000.,
-            health_max: 1000.,
+            health_current: 500.,
+            health_max: 500.,
+            exp_current: 0.,
+            exp_max: 1000.,
+            level: 1,
             move_speed: BASE_MOVESPEED,
         })
         .insert(Warpable)

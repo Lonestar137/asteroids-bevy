@@ -124,13 +124,13 @@ fn kill_on_contact(
 
 fn exp_pull_system(
     mut commands: Commands,
-    mut shards: Query<(Entity, &Transform, &mut Velocity), With<ExperienceShard>>,
-    player: Query<&Transform, (With<Player>, Without<ExperienceShard>)>,
+    mut shards: Query<(Entity, &Transform, &mut Velocity, &ExperienceShard), With<ExperienceShard>>,
+    mut player: Query<(&Transform, &mut Player), (With<Player>, Without<ExperienceShard>)>,
 ) {
     let exp_pull_range: f32 = BASE_EXP_PULL;
     let exp_absorb_range: f32 = 40.;
-    let player_transform = player.single();
-    for (shard_entity, shard_transform, mut shard_velocity) in shards.iter_mut() {
+    let (player_transform, mut player_data) = player.single_mut();
+    for (shard_entity, shard_transform, mut shard_velocity, shard_data) in shards.iter_mut() {
         let distance = player_transform
             .translation
             .distance(shard_transform.translation);
@@ -141,6 +141,12 @@ fn exp_pull_system(
             shard_velocity.linvel = velocity.xy();
         }
         if distance < exp_absorb_range {
+            player_data.exp_current += shard_data.0;
+            if player_data.exp_current > player_data.exp_max {
+                info!("LEVEL UP {:?}", player_data.level);
+                player_data.level += 1;
+                player_data.exp_max = player_data.exp_max * 1.2;
+            }
             commands.entity(shard_entity).despawn_recursive();
             debug!("Absorbed EXP!");
         }

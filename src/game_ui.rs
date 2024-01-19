@@ -6,12 +6,13 @@ use bevy::prelude::*;
 pub struct GameInterfacePlugin;
 impl Plugin for GameInterfacePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_hud)
+        app.add_systems(PostStartup, setup_hud)
             .add_systems(FixedUpdate, update_health_system);
     }
 }
 
-fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_hud(mut commands: Commands, player: Query<&Player>, asset_server: Res<AssetServer>) {
+    let player_data = player.single();
     // Spawn the health bars.
     commands
         .spawn(ImageBundle {
@@ -63,7 +64,7 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
             bar.spawn((TextBundle::from_section(
                 "HP",
                 TextStyle {
-                    font_size: 30.0,
+                    font_size: 15.0,
                     ..default()
                 },
             )
@@ -77,7 +78,11 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             bar.spawn((
                 TextBundle::from_section(
-                    "1000/1000",
+                    format!(
+                        "{current}/{max}",
+                        current = player_data.health_current,
+                        max = player_data.health_max
+                    ),
                     TextStyle {
                         font_size: 30.0,
                         ..default()
@@ -96,18 +101,36 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-fn update_health_system(mut player_query: Query<&Player>, mut query: Query<(&Name, &mut Style)>) {
-    for (ui_name, mut style) in query.iter_mut() {
+fn update_health_system(
+    player_query: Query<&Player>,
+    mut bar_query: Query<(&Name, &mut Style)>,
+    mut text_query: Query<(&Name, &mut Text)>,
+) {
+    let player_data = player_query.single();
+    for (ui_name, mut style) in bar_query.iter_mut() {
         if ui_name.as_str() == "ForegroundHealthBar" {
-            info!("{:?}", ui_name);
-            let mut player = player_query.single_mut();
             // Update the foreground health bar width based on the health percentage
-            let health_percentage = player.health_current / player.health_max;
+            let health_percentage = player_data.health_current / player_data.health_max;
             let new_width = Val::Percent(health_percentage * 100.0);
             style.width = new_width;
-
-            // Update the health text
-            // text.sections[0].value = format!("{}/{}", health.current as i32, health.max as i32);
+        }
+    }
+    for (ui_name, mut text) in text_query.iter_mut() {
+        if ui_name.as_str() == "HealthText" {
+            let healthtext = text
+                .sections
+                .first_mut()
+                .expect("Healthtext was not retrieved.");
+            let displayed_curr_health = if player_data.health_current < 0. {
+                0.
+            } else {
+                player_data.health_current
+            };
+            healthtext.value = format!(
+                "{current}/{max}",
+                current = displayed_curr_health,
+                max = player_data.health_max
+            );
         }
     }
 }
