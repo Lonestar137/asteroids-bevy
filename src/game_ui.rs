@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::player::Player;
 use bevy::prelude::*;
 
@@ -19,7 +17,7 @@ fn setup_hud(mut commands: Commands, player: Query<&Player>, asset_server: Res<A
             style: Style {
                 width: Val::Percent(35.0),
                 height: Val::Percent(5.0),
-                top: Val::Percent(40.),
+                top: Val::Percent(95.),
                 ..default()
             },
             image: asset_server.load("healthbar.png").into(),
@@ -98,6 +96,25 @@ fn setup_hud(mut commands: Commands, player: Query<&Player>, asset_server: Res<A
                 Label,
             ))
             .insert(Name::new("HealthText"));
+
+            bar.spawn((
+                TextBundle::from_section(
+                    format!("Lv. {}", player_data.level,),
+                    TextStyle {
+                        font_size: 30.0,
+                        ..default()
+                    },
+                )
+                .with_style(Style {
+                    margin: UiRect::all(Val::Px(1.)),
+                    position_type: PositionType::Absolute, // Use absolute positioning
+                    top: Val::Percent(35.),
+                    left: Val::Percent(10.),
+                    ..default()
+                }),
+                Label,
+            ))
+            .insert(Name::new("LevelText"));
         });
 }
 
@@ -131,6 +148,12 @@ fn update_health_system(
                 current = displayed_curr_health,
                 max = player_data.health_max
             );
+        } else if ui_name.as_str() == "LevelText" {
+            let leveltext = text
+                .sections
+                .first_mut()
+                .expect("leveltext was not retrieved.");
+            leveltext.value = format!("Lv. {}", player_data.level);
         }
     }
 }

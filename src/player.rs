@@ -17,13 +17,15 @@ use bevy::{
 use bevy_cursor::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_rapier2d::prelude::*;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant}; // TODO: https://bevy-cheatbook.github.io/pitfalls/time.html
 
 const BALL_SIZE: Vec3 = Vec3::new(20., 20., 0.);
 const BASE_MOVESPEED: f32 = 150.0;
 const PROJECTILE_LIMIT: i32 = 40;
 const COOLDOWN_DURATION_MS: u64 = 200;
 
+#[derive(Event)]
+pub struct LevelUpEvent;
 #[derive(Resource, Debug)]
 struct ShootingCooldown {
     last_shot_time: Instant,
@@ -43,6 +45,7 @@ pub struct ExhaustEffect;
 #[derive(Component)]
 pub struct Projectile {
     pub damage: f32,
+    pub damage_modifier: f32,
 }
 #[derive(Component)]
 pub struct Player {
@@ -60,7 +63,8 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         // app.add_systems(FixedUpdate, )
-        app.add_plugins(CursorInfoPlugin)
+        app.add_event::<LevelUpEvent>()
+            .add_plugins(CursorInfoPlugin)
             .add_plugins(GameInterfacePlugin)
             .insert_resource(ShootingCooldown {
                 last_shot_time: Instant::now(),
@@ -78,7 +82,11 @@ impl Plugin for PlayerPlugin {
             .add_systems(Update, handle_player_collision)
             .add_systems(FixedUpdate, look_at_cursor)
             .add_systems(FixedUpdate, modify_player_translation)
-            .add_systems(FixedUpdate, update_winsize);
+            .add_systems(FixedUpdate, update_winsize)
+            .add_systems(
+                FixedUpdate,
+                handle_projectile_mod.run_if(on_event::<LevelUpEvent>()),
+            );
     }
 }
 
@@ -107,7 +115,10 @@ fn setup_projectiles(
                 sleeping: true,
                 ..default()
             })
-            .insert(Projectile { damage: 10. })
+            .insert(Projectile {
+                damage: 10.,
+                damage_modifier: 1.2,
+            })
             .insert(Visibility::Hidden)
             .insert(ExternalImpulse {
                 impulse: Vec2::new(0., 0.),
@@ -271,8 +282,8 @@ fn shoot_projectile(
 
                                 // Update projectile transform to face the cursor direction
                                 let angle = normalized_direction.y.atan2(normalized_direction.x);
-                                // transform.rotation =
-                                // Quat::from_rotation_arc(-Vec3::Y, angle.to_degrees());
+                                transform.rotation =
+                                    Quat::from_rotation_arc(-Vec3::Y, angle.to_degrees());
                                 transform.rotate_y(45.);
                                 cooldown.last_shot_time = current_time;
                             }
@@ -392,6 +403,13 @@ fn handle_player_collision(
                 }
             }
         }
+    }
+}
+
+fn handle_projectile_mod(mut projectile_query: Query<&mut Projectile>) {
+    // Runs on LevelUpEvent
+    for mut projectile in projectile_query.iter_mut() {
+        projectile.damage = projectile.damage * projectile.damage_modifier;
     }
 }
 

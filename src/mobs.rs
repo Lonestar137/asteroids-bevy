@@ -1,11 +1,8 @@
-use std::time::Duration;
-
 use crate::constants::BASE_EXP_PULL;
-use crate::player::{Player, Projectile, Warpable, WindowSize};
+use crate::player::{LevelUpEvent, Player, Projectile, Warpable, WindowSize};
 
-use bevy::audio::{Volume, VolumeLevel};
+use bevy::audio::Volume;
 use bevy::prelude::*;
-use bevy_rapier2d::parry::simba::scalar::SupersetOf;
 use bevy_rapier2d::prelude::*;
 use rand::{thread_rng, Rng};
 
@@ -126,6 +123,7 @@ fn exp_pull_system(
     mut commands: Commands,
     mut shards: Query<(Entity, &Transform, &mut Velocity, &ExperienceShard), With<ExperienceShard>>,
     mut player: Query<(&Transform, &mut Player), (With<Player>, Without<ExperienceShard>)>,
+    mut event_writer: EventWriter<LevelUpEvent>,
 ) {
     let exp_pull_range: f32 = BASE_EXP_PULL;
     let exp_absorb_range: f32 = 40.;
@@ -144,6 +142,7 @@ fn exp_pull_system(
             player_data.exp_current += shard_data.0;
             if player_data.exp_current > player_data.exp_max {
                 info!("LEVEL UP {:?}", player_data.level);
+                event_writer.send(LevelUpEvent);
                 player_data.level += 1;
                 player_data.exp_max = player_data.exp_max * 1.2;
             }
@@ -188,6 +187,108 @@ fn spawn_wave(
     if elapsed_seconds > 10. && wave.0 == 1 {
         debug!("Wave 1 spawned.");
         for _ in 0..40 {
+            let random_x = rng.gen_range(-1000. ..1000.) as f32;
+            let random_y = rng.gen_range(-1000. ..1000.) as f32;
+            let direction = player_transform.translation.xy() - Vec2::new(random_x, random_y);
+            let left_or_right = if rng.gen_bool(0.5) {
+                let left_pad = win_size.left_wall;
+                rng.gen_range(left_pad * 1.2..left_pad) as f32
+            } else {
+                let right_pad = win_size.right_wall;
+                rng.gen_range(right_pad..right_pad * 1.2) as f32
+            };
+            commands
+                .spawn(SpriteBundle {
+                    texture: asset_server.load("./asteroid1.png"),
+                    sprite: Sprite {
+                        // color: Color::rgb(0.25, 0.25, 0.75),
+                        color: Color::rgb(1.2, 1.2, 1.2),
+                        custom_size: Some(Vec2::new(50.0, 50.0)),
+                        ..default()
+                    },
+                    // transform: Transform::from_translation(Vec3::new(-200., -400., 2.)),
+                    transform: Transform::from_translation(Vec3::new(left_or_right, random_y, 2.)),
+                    ..default()
+                })
+                .insert(Enemy {
+                    health: 100.,
+                    collision_damage: 10.,
+                })
+                .insert(Warpable)
+                .insert(ExternalImpulse {
+                    impulse: direction * 0.02,
+                    torque_impulse: 0.07,
+                })
+                .insert(Collider::ball(30.0))
+                .insert(RigidBody::Dynamic)
+                .insert(AdditionalMassProperties::Mass(100.0))
+                .insert(GravityScale(0.))
+                .insert(Velocity::linear(Vec2::new(0., 0.)))
+                .insert(CollisionGroups::new(
+                    Group::GROUP_3,
+                    Group::GROUP_1 | Group::GROUP_2,
+                ))
+                .insert(SolverGroups::new(
+                    Group::GROUP_3,
+                    Group::GROUP_1 | Group::GROUP_2,
+                ))
+                .insert(ActiveEvents::COLLISION_EVENTS);
+        }
+
+        wave.0 += 1;
+    } else if elapsed_minutes > 1. && wave.0 == 2 {
+        for _ in 0..60 {
+            let random_x = rng.gen_range(-1000. ..1000.) as f32;
+            let random_y = rng.gen_range(-1000. ..1000.) as f32;
+            let direction = player_transform.translation.xy() - Vec2::new(random_x, random_y);
+            let left_or_right = if rng.gen_bool(0.5) {
+                let left_pad = win_size.left_wall;
+                rng.gen_range(left_pad * 1.2..left_pad) as f32
+            } else {
+                let right_pad = win_size.right_wall;
+                rng.gen_range(right_pad..right_pad * 1.2) as f32
+            };
+            commands
+                .spawn(SpriteBundle {
+                    texture: asset_server.load("./asteroid1.png"),
+                    sprite: Sprite {
+                        // color: Color::rgb(0.25, 0.25, 0.75),
+                        color: Color::rgb(1.2, 1.2, 1.2),
+                        custom_size: Some(Vec2::new(50.0, 50.0)),
+                        ..default()
+                    },
+                    // transform: Transform::from_translation(Vec3::new(-200., -400., 2.)),
+                    transform: Transform::from_translation(Vec3::new(left_or_right, random_y, 2.)),
+                    ..default()
+                })
+                .insert(Enemy {
+                    health: 100.,
+                    collision_damage: 10.,
+                })
+                .insert(Warpable)
+                .insert(ExternalImpulse {
+                    impulse: direction * 0.02,
+                    torque_impulse: 0.07,
+                })
+                .insert(Collider::ball(30.0))
+                .insert(RigidBody::Dynamic)
+                .insert(AdditionalMassProperties::Mass(100.0))
+                .insert(GravityScale(0.))
+                .insert(Velocity::linear(Vec2::new(0., 0.)))
+                .insert(CollisionGroups::new(
+                    Group::GROUP_3,
+                    Group::GROUP_1 | Group::GROUP_2,
+                ))
+                .insert(SolverGroups::new(
+                    Group::GROUP_3,
+                    Group::GROUP_1 | Group::GROUP_2,
+                ))
+                .insert(ActiveEvents::COLLISION_EVENTS);
+        }
+
+        wave.0 += 1;
+    } else if elapsed_minutes > 1.5 && wave.0 == 3 {
+        for _ in 0..80 {
             let random_x = rng.gen_range(-1000. ..1000.) as f32;
             let random_y = rng.gen_range(-1000. ..1000.) as f32;
             let direction = player_transform.translation.xy() - Vec2::new(random_x, random_y);
