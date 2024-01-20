@@ -3,6 +3,7 @@ use crate::player::{LevelUpEvent, Player, Projectile, Warpable, WindowSize};
 
 use bevy::audio::Volume;
 use bevy::prelude::*;
+use bevy::time::Stopwatch;
 use bevy_rapier2d::prelude::*;
 use rand::{thread_rng, Rng};
 
@@ -23,7 +24,10 @@ impl Plugin for MobPlugin {
         app.add_plugins(EnemyWavePlugin)
             .add_systems(Startup, setup)
             .add_systems(PostUpdate, exp_pull_system)
-            .add_systems(PostUpdate, kill_on_contact);
+            .add_systems(
+                PostUpdate,
+                kill_on_contact.run_if(on_event::<CollisionEvent>()),
+            );
     }
 }
 
@@ -199,11 +203,11 @@ fn spawn_wave(
             };
             commands
                 .spawn(SpriteBundle {
-                    texture: asset_server.load("./asteroid1.png"),
+                    texture: asset_server.load("Asteroids/A3__00004.png"),
                     sprite: Sprite {
                         // color: Color::rgb(0.25, 0.25, 0.75),
                         color: Color::rgb(1.2, 1.2, 1.2),
-                        custom_size: Some(Vec2::new(50.0, 50.0)),
+                        custom_size: Some(Vec2::new(150.0, 150.0)),
                         ..default()
                     },
                     // transform: Transform::from_translation(Vec3::new(-200., -400., 2.)),
@@ -217,7 +221,7 @@ fn spawn_wave(
                 .insert(Warpable)
                 .insert(ExternalImpulse {
                     impulse: direction * 0.02,
-                    torque_impulse: 0.07,
+                    torque_impulse: 0.02,
                 })
                 .insert(Collider::ball(30.0))
                 .insert(RigidBody::Dynamic)
@@ -250,11 +254,12 @@ fn spawn_wave(
             };
             commands
                 .spawn(SpriteBundle {
-                    texture: asset_server.load("./asteroid1.png"),
+                    // texture: asset_server.load("./asteroid1.png"),
+                    texture: asset_server.load("Asteroids/A1__00000.png"),
                     sprite: Sprite {
                         // color: Color::rgb(0.25, 0.25, 0.75),
                         color: Color::rgb(1.2, 1.2, 1.2),
-                        custom_size: Some(Vec2::new(50.0, 50.0)),
+                        custom_size: Some(Vec2::new(250.0, 250.0)),
                         ..default()
                     },
                     // transform: Transform::from_translation(Vec3::new(-200., -400., 2.)),
@@ -270,7 +275,7 @@ fn spawn_wave(
                     impulse: direction * 0.02,
                     torque_impulse: 0.07,
                 })
-                .insert(Collider::ball(30.0))
+                .insert(Collider::ball(50.0))
                 .insert(RigidBody::Dynamic)
                 .insert(AdditionalMassProperties::Mass(100.0))
                 .insert(GravityScale(0.))
@@ -301,11 +306,11 @@ fn spawn_wave(
             };
             commands
                 .spawn(SpriteBundle {
-                    texture: asset_server.load("./asteroid1.png"),
+                    texture: asset_server.load("Asteroids/A4__00001.png"),
                     sprite: Sprite {
                         // color: Color::rgb(0.25, 0.25, 0.75),
                         color: Color::rgb(1.2, 1.2, 1.2),
-                        custom_size: Some(Vec2::new(50.0, 50.0)),
+                        custom_size: Some(Vec2::new(200.0, 200.0)),
                         ..default()
                     },
                     // transform: Transform::from_translation(Vec3::new(-200., -400., 2.)),
@@ -321,7 +326,7 @@ fn spawn_wave(
                     impulse: direction * 0.02,
                     torque_impulse: 0.07,
                 })
-                .insert(Collider::ball(30.0))
+                .insert(Collider::ball(40.0))
                 .insert(RigidBody::Dynamic)
                 .insert(AdditionalMassProperties::Mass(100.0))
                 .insert(GravityScale(0.))

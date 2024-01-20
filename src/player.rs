@@ -3,6 +3,8 @@ use crate::game_ui::GameInterfacePlugin;
 use crate::mobs::Enemy;
 
 use bevy::ecs::system::ParamSet;
+use bevy::input::keyboard::KeyboardInput;
+use bevy::input::mouse;
 use bevy::prelude::*;
 use bevy::render::view::WindowSurfaces;
 use bevy::{
@@ -104,7 +106,7 @@ fn setup_projectiles(
                     ..default()
                 },
                 transform: Transform {
-                    translation: Vec3::new(500., 500., 3.),
+                    translation: Vec3::new(10000., 10000., 3.),
                     scale: BALL_SIZE,
                     ..default()
                 },
@@ -215,21 +217,28 @@ fn look_at_cursor(cursor: Res<CursorInfo>, mut player_query: Query<&mut Transfor
 fn modify_player_translation(
     mut query: Query<(&mut ExternalImpulse, &Transform, &Player), With<Player>>,
     keyboard_input: Res<Input<KeyCode>>,
-    mouse_input: Res<Input<MouseButton>>,
     cursor: Res<CursorInfo>,
 ) {
-    if keyboard_input.pressed(KeyCode::Space) {
-        match cursor.position() {
-            Some(cursor_direction) => {
-                let (mut ext_impulse, transform, player) = query.single_mut();
-                let direction = cursor_direction - transform.translation.truncate();
+    match cursor.position() {
+        Some(cursor_direction) => {
+            let (mut ext_impulse, transform, player) = query.single_mut();
+            let direction = cursor_direction - transform.translation.truncate();
 
-                // Apply force in the direction the sprite is facing
+            if keyboard_input.pressed(KeyCode::Space) {
                 ext_impulse.impulse = direction.normalize() * player.move_speed;
-                // Adjust magnitude as needed
             }
-            _ => (),
+            if keyboard_input.pressed(KeyCode::A) {
+                let right_direction = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
+                    .mul_vec3(direction.extend(0.));
+                ext_impulse.impulse = right_direction.xy().normalize() * (player.move_speed * 0.2);
+            }
+            if keyboard_input.pressed(KeyCode::F) {
+                let left_direction = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2)
+                    .mul_vec3(direction.extend(0.));
+                ext_impulse.impulse = left_direction.xy().normalize() * (player.move_speed * 0.2);
+            }
         }
+        _ => (),
     }
 }
 
@@ -250,7 +259,7 @@ fn shoot_projectile(
     mut cooldown: ResMut<ShootingCooldown>,
 ) {
     let mut spawn_limit = PROJECTILE_LIMIT as usize;
-    if keyboard_input.pressed(KeyCode::S) || mouse_input.just_pressed(MouseButton::Left) {
+    if keyboard_input.pressed(KeyCode::S) || mouse_input.pressed(MouseButton::Left) {
         let current_time = Instant::now();
         let time_since_last_shot = current_time - cooldown.last_shot_time;
 
@@ -268,7 +277,7 @@ fn shoot_projectile(
                                 let player_transform = player_query.single();
 
                                 // Set projectile transform to player position
-                                *transform = *player_transform;
+                                transform.translation = player_transform.translation;
                                 transform.scale = BALL_SIZE;
 
                                 // Calculate direction vector from projectile position to cursor position
@@ -281,10 +290,13 @@ fn shoot_projectile(
                                 ext_impulse.impulse = normalized_direction * 10000.0;
 
                                 // Update projectile transform to face the cursor direction
-                                let angle = normalized_direction.y.atan2(normalized_direction.x);
-                                transform.rotation =
-                                    Quat::from_rotation_arc(-Vec3::Y, angle.to_degrees());
-                                transform.rotate_y(45.);
+                                // info!("BEFORE {:?}", transform.rotation);
+                                let d = (player_transform.translation.xy() - cursor_direction)
+                                    .normalize();
+                                let proj_rotate = Quat::from_rotation_arc(-Vec3::Z, d.extend(0.));
+                                transform.rotation = proj_rotate;
+                                // info!("AFTER {:?}", transform.rotation);
+
                                 cooldown.last_shot_time = current_time;
                             }
                             spawn_limit = i;
