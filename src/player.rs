@@ -80,13 +80,13 @@ impl Plugin for PlayerPlugin {
             // )
             .add_systems(
                 Update,
-                (
-                    handle_player_collision,
-                    ship_warp,
-                    shoot_projectile,
-                    despawn_projectile,
-                )
+                (handle_player_collision, ship_warp, shoot_projectile)
                     .run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                FixedUpdate,
+                // TODO: sometimes this runs after the gamestate is updated, removing paused projectiles.
+                despawn_projectile.run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 FixedUpdate,
@@ -325,7 +325,6 @@ fn despawn_projectile(
         (With<Projectile>, Without<Player>),
     >,
 ) {
-    // let (bullet_velocity, bullet_visibility) =
     for (mut bullet_velocity, mut bullet_visibility, mut transform) in projectile_query.iter_mut() {
         if *bullet_visibility == Visibility::Visible {
             let linvel = bullet_velocity.linvel;

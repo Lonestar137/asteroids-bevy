@@ -263,8 +263,8 @@ fn pause_system(
     mut gamestate: ResMut<NextState<GameState>>,
     keyboard_input: Res<Input<KeyCode>>,
 ) {
+    let curr_state = curr_gamestate.get();
     if keyboard_input.just_pressed(KeyCode::Q) {
-        let curr_state = curr_gamestate.get();
         match curr_state {
             GameState::Paused => {
                 stopwatch.0.unpause();

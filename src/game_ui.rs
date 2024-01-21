@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::player::Player;
+use bevy::a11y::accesskit::TextAlign;
 use bevy::prelude::*;
 use bevy::reflect::Map;
 use bevy::time::Stopwatch;
@@ -29,7 +30,9 @@ impl Plugin for GameInterfacePlugin {
                 FixedUpdate,
                 update_health_system.run_if(in_state(GameState::Playing)),
             )
-            .add_systems(Update, save_velocity_system);
+            .add_systems(Update, save_velocity_system)
+            .add_systems(OnEnter(GameState::Paused), setup_pause_menu)
+            .add_systems(OnExit(GameState::Paused), despawn_menu);
     }
 }
 
@@ -209,6 +212,111 @@ fn save_velocity_system(
                 }
                 _ => (),
             }
+        }
+    }
+}
+
+fn setup_pause_menu(mut commands: Commands) {
+    let root = commands
+        .spawn((NodeBundle {
+            // give it a dark background for readability
+            // background_color: BackgroundColor(Color::BLACK.with_a(0.8)),
+            background_color: BackgroundColor(Color::MIDNIGHT_BLUE.with_a(0.9)),
+            // make it "always on top" by setting the Z index to maximum
+            // we want it to be displayed over all other UI
+            z_index: ZIndex::Global(i32::MAX),
+            style: Style {
+                position_type: PositionType::Absolute,
+                right: Val::Percent(40.),
+                top: Val::Percent(20.),
+                bottom: Val::Auto,
+                left: Val::Percent(40.),
+                padding: UiRect::all(Val::Px(4.0)),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            ..Default::default()
+        },))
+        .insert(Name::new("PauseMenuRoot"))
+        .id();
+
+    let box_and_title = commands
+        .spawn(TextBundle {
+            text: Text::from_sections([TextSection {
+                value: "Paused".into(),
+                style: TextStyle {
+                    font_size: 32.0,
+                    color: Color::WHITE,
+                    ..default()
+                },
+            }]),
+            ..Default::default()
+        })
+        .insert(Name::new("PauseState"))
+        .id();
+
+    let button_style = Style {
+        width: Val::Px(250.0),
+        height: Val::Px(65.0),
+        margin: UiRect::all(Val::Px(20.0)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    };
+    let button_text_style = TextStyle {
+        font_size: 24.0,
+        ..default()
+    };
+
+    let normal_button: Color = Color::rgb(0.15, 0.15, 0.15);
+    let button = ButtonBundle {
+        style: button_style.clone(),
+        background_color: normal_button.into(),
+        ..default()
+    };
+
+    let resume_button = commands
+        .spawn(button.clone())
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "Resume",
+                button_text_style.clone(),
+            ));
+        })
+        .id();
+
+    let settings_button = commands
+        .spawn(button.clone())
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "Settings",
+                button_text_style.clone(),
+            ));
+        })
+        .id();
+
+    let exit_button = commands
+        .spawn(button.clone())
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section("Exit", button_text_style.clone()));
+        })
+        .id();
+
+    commands.entity(box_and_title).push_children(&[]);
+    commands.entity(root).push_children(&[
+        box_and_title,
+        resume_button,
+        settings_button,
+        exit_button,
+    ]);
+}
+
+fn despawn_menu(mut commands: Commands, query: Query<(Entity, &Name)>) {
+    for (entity, name) in query.iter() {
+        if name.as_str() == "PauseMenuRoot" {
+            commands.entity(entity).despawn_recursive()
         }
     }
 }
