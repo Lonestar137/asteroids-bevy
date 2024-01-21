@@ -1,4 +1,5 @@
 use asteroids_bevy::constants::{WH, WW};
+use asteroids_bevy::game_ui::{GameRuntime, GameState};
 use asteroids_bevy::mobs::MobPlugin;
 use asteroids_bevy::parralax::ParallaxBackgroundPlugin;
 use asteroids_bevy::player::PlayerPlugin;
@@ -12,18 +13,6 @@ use bevy::{
 use bevy_hanabi::HanabiPlugin;
 // use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_rapier2d::prelude::*;
-
-// Tracks elapsed time outside Paused state
-#[derive(Resource)]
-pub struct GameRuntime(Stopwatch);
-
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-pub enum GameState {
-    Paused,
-    #[default]
-    Playing,
-    StartMenu,
-}
 
 fn main() {
     App::new()

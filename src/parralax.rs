@@ -1,3 +1,5 @@
+use crate::game_ui::{GameRuntime, GameState};
+
 use bevy::prelude::*;
 use bevy_parallax::{
     CreateParallaxEvent, LayerData, LayerRepeat, LayerSpeed, ParallaxCameraComponent,
@@ -26,10 +28,14 @@ pub struct ParallaxBackgroundPlugin;
 impl Plugin for ParallaxBackgroundPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ParallaxPlugin)
-            .add_systems(Startup, initialize_camera_system)
-            .add_systems(Update, move_camera_system.before(ParallaxSystems))
-        // .insert_resource(ClearColor(Color::rgb_u8(42, 0, 63)));
-        ;
+            .add_systems(
+                Startup,
+                initialize_camera_system.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                Update,
+                (move_camera_system.before(ParallaxSystems)).run_if(in_state(GameState::Playing)),
+            );
     }
 }
 

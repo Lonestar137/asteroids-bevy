@@ -1,4 +1,5 @@
 use crate::constants::BASE_EXP_PULL;
+use crate::game_ui::{GameRuntime, GameState};
 use crate::player::{LevelUpEvent, Player, Projectile, Warpable, WindowSize};
 
 use bevy::audio::Volume;
@@ -23,10 +24,15 @@ impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EnemyWavePlugin)
             .add_systems(Startup, setup)
-            .add_systems(PostUpdate, exp_pull_system)
             .add_systems(
                 PostUpdate,
-                kill_on_contact.run_if(on_event::<CollisionEvent>()),
+                exp_pull_system.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                PostUpdate,
+                kill_on_contact
+                    .run_if(on_event::<CollisionEvent>())
+                    .run_if(in_state(GameState::Playing)),
             );
     }
 }
@@ -171,7 +177,7 @@ impl Plugin for EnemyWavePlugin {
     fn build(&self, app: &mut App) {
         // TODO: Spawns a random set of enemies every # minutes.
         app.insert_resource(CurrentWave(1))
-            .add_systems(Update, spawn_wave);
+            .add_systems(Update, spawn_wave.run_if(in_state(GameState::Playing)));
     }
 }
 
@@ -180,12 +186,12 @@ fn spawn_wave(
     player: Query<&Transform, (With<Player>, Without<ExperienceShard>)>,
     mut wave: ResMut<CurrentWave>,
     asset_server: Res<AssetServer>,
-    time: Res<Time<Fixed>>,
+    time: Res<GameRuntime>,
     win_size: Res<WindowSize>,
 ) {
     let player_transform = player.single();
     let mut rng = rand::thread_rng();
-    let elapsed_seconds = time.elapsed_seconds();
+    let elapsed_seconds = time.0.elapsed_secs();
     let elapsed_minutes = elapsed_seconds / 60.;
 
     if elapsed_seconds > 10. && wave.0 == 1 {
@@ -236,6 +242,10 @@ fn spawn_wave(
                     Group::GROUP_3,
                     Group::GROUP_1 | Group::GROUP_2,
                 ))
+                .insert(Sleeping {
+                    sleeping: true,
+                    ..default()
+                })
                 .insert(ActiveEvents::COLLISION_EVENTS);
         }
 

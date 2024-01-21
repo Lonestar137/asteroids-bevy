@@ -1,12 +1,9 @@
 use crate::constants::*;
-use crate::game_ui::GameInterfacePlugin;
+use crate::game_ui::{GameInterfacePlugin, GameRuntime, GameState};
 use crate::mobs::Enemy;
 
 use bevy::ecs::system::ParamSet;
-use bevy::input::keyboard::KeyboardInput;
-use bevy::input::mouse;
 use bevy::prelude::*;
-use bevy::render::view::WindowSurfaces;
 use bevy::{
     core_pipeline::{
         bloom::BloomSettings, clear_color::ClearColorConfig, tonemapping::Tonemapping,
@@ -73,21 +70,33 @@ impl Plugin for PlayerPlugin {
                 cooldown_duration: Duration::from_millis(COOLDOWN_DURATION_MS),
             })
             .insert_resource(ProjectilePool(Vec::new()))
-            .add_systems(Startup, setup_player)
-            .add_systems(Startup, setup_projectiles)
+            .add_systems(
+                Startup,
+                (setup_player, setup_projectiles).run_if(in_state(GameState::Playing)),
+            )
             // .add_systems(
             //     Update,
             //     (add_thrust_particles_to_ship, update_thrust_particles),
             // )
-            .add_systems(Update, ship_warp)
-            .add_systems(Update, (shoot_projectile, despawn_projectile))
-            .add_systems(Update, handle_player_collision)
-            .add_systems(FixedUpdate, look_at_cursor)
-            .add_systems(FixedUpdate, modify_player_translation)
-            .add_systems(FixedUpdate, update_winsize)
+            .add_systems(
+                Update,
+                (
+                    handle_player_collision,
+                    ship_warp,
+                    shoot_projectile,
+                    despawn_projectile,
+                )
+                    .run_if(in_state(GameState::Playing)),
+            )
             .add_systems(
                 FixedUpdate,
-                handle_projectile_mod.run_if(on_event::<LevelUpEvent>()),
+                (
+                    handle_projectile_mod.run_if(on_event::<LevelUpEvent>()),
+                    update_winsize,
+                    modify_player_translation,
+                    look_at_cursor,
+                )
+                    .run_if(in_state(GameState::Playing)),
             );
     }
 }
@@ -177,6 +186,7 @@ fn setup_player(
             move_speed: BASE_MOVESPEED,
         })
         .insert(Warpable)
+        .insert(Velocity::zero())
         .insert(ExternalImpulse {
             impulse: Vec2::new(0., 0.),
             torque_impulse: 0.0,

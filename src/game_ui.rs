@@ -1,11 +1,35 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::player::Player;
 use bevy::prelude::*;
+use bevy::reflect::Map;
+use bevy::time::Stopwatch;
+use bevy::utils::hashbrown::HashMap;
+use bevy_rapier2d::prelude::*;
+
+#[derive(Resource, Debug)]
+pub struct VelocityStorage(pub HashMap<Entity, Velocity>);
+// Tracks elapsed time outside Paused state
+#[derive(Resource)]
+pub struct GameRuntime(pub Stopwatch);
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+pub enum GameState {
+    Paused,
+    #[default]
+    Playing,
+    StartMenu,
+}
 
 pub struct GameInterfacePlugin;
 impl Plugin for GameInterfacePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PostStartup, setup_hud)
-            .add_systems(FixedUpdate, update_health_system);
+        app.insert_resource(VelocityStorage(HashMap::new()))
+            .add_systems(PostStartup, setup_hud.run_if(in_state(GameState::Playing)))
+            .add_systems(
+                FixedUpdate,
+                update_health_system.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(Update, save_velocity_system);
     }
 }
 
@@ -154,6 +178,37 @@ fn update_health_system(
                 .first_mut()
                 .expect("leveltext was not retrieved.");
             leveltext.value = format!("Lv. {}", player_data.level);
+        }
+    }
+}
+
+fn save_velocity_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Velocity, &mut ExternalImpulse)>,
+    curr_gamestate: Res<State<GameState>>,
+    mut velocity_storage: ResMut<VelocityStorage>,
+) {
+    if curr_gamestate.is_changed() {
+        for (entity, mut velocity, mut impulse) in query.iter_mut() {
+            let entity_id = commands.entity(entity).id();
+            match curr_gamestate.get() {
+                GameState::Playing => {
+                    // Reload the old force
+                    let default_vel = &Velocity::zero();
+                    let unpaused_velocity =
+                        velocity_storage.0.get(&entity_id).unwrap_or(default_vel);
+                    *velocity = *unpaused_velocity;
+                }
+                GameState::Paused => {
+                    // Save old force
+                    velocity_storage.0.insert(entity_id, *velocity);
+
+                    // Set forces to zero
+                    ExternalImpulse::reset(impulse.deref_mut());
+                    *velocity = Velocity::zero();
+                }
+                _ => (),
+            }
         }
     }
 }
