@@ -1,10 +1,10 @@
 use crate::constants::BASE_EXP_PULL;
 use crate::game_ui::{GameRuntime, GameState};
-use crate::player::{LevelUpEvent, Player, Projectile, Warpable, WindowSize};
+use crate::guns::Projectile;
+use crate::player::{LevelUpEvent, Player, Warpable, WindowSize};
 
 use bevy::audio::Volume;
 use bevy::prelude::*;
-use bevy::time::Stopwatch;
 use bevy_rapier2d::prelude::*;
 use rand::{thread_rng, Rng};
 
@@ -73,7 +73,7 @@ fn kill_on_contact(
                 debug!("Bullet collision");
                 // Play bullet impact sound.
                 let audio_settings = PlaybackSettings {
-                    volume: Volume::new_relative(0.2),
+                    volume: Volume::new_relative(0.05),
                     ..default()
                 };
                 // Volume::Relative(VolumeLevel(1.0))
