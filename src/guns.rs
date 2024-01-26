@@ -1,15 +1,21 @@
 use crate::game_ui::{GameInterfacePlugin, GameRuntime, GameState};
 use crate::player::Player;
 
-use bevy::prelude::*;
+use bevy::ecs::schedule::MultiThreadedExecutor;
+use bevy::render::render_resource::AsBindGroupShaderType;
+use bevy::sprite::MaterialMesh2dBundle;
+use bevy::{prelude::*, sprite};
 use bevy_cursor::prelude::*;
 use bevy_rapier2d::prelude::*;
+use rand::{thread_rng, Rng};
 use std::iter::Empty;
 
 const COOLDOWN_DURATION_MS: u64 = 200;
 pub const PROJECTILE_LIMIT: i32 = 40;
-pub const BALL_SIZE: Vec3 = Vec3::new(20., 20., 0.);
+pub const BALL_SIZE: Vec3 = Vec3::splat(30.);
 
+#[derive(Event)]
+pub struct BladeEvent;
 #[derive(Resource)]
 pub struct ProjectilePool(Vec<Entity>);
 #[derive(Component)]
@@ -22,8 +28,9 @@ pub struct Projectile {
 }
 #[derive(Component)]
 pub struct Multishot {
-    count: f32,
+    count: i32,
     spread: f32,
+    processed: bool,
 }
 pub struct Burst {
     rounds: i32,
@@ -39,6 +46,7 @@ pub struct Blade {
     slash_dmg: f32,
     bleed: f32,
     length: f32,
+    swing_speed: f32,
 }
 #[derive(Component)]
 pub struct Emp {
@@ -49,7 +57,8 @@ pub struct Emp {
 pub struct WeaponPlugin;
 impl Plugin for WeaponPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ProjectilePool(Vec::new()))
+        app.add_event::<BladeEvent>()
+            .insert_resource(ProjectilePool(Vec::new()))
             .insert_resource(ShootingCooldown {
                 last_shot_time: Instant::now(),
                 cooldown_duration: Duration::from_millis(COOLDOWN_DURATION_MS),
@@ -60,12 +69,16 @@ impl Plugin for WeaponPlugin {
             )
             .add_systems(
                 Update,
-                shoot_projectile.run_if(in_state(GameState::Playing)),
+                (upgrade_weapon, shoot_projectile).run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 FixedUpdate,
                 // TODO: sometimes this runs after the gamestate is updated, removing paused projectiles.
                 despawn_projectile.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                FixedUpdate,
+                apply_blade_event.run_if(on_event::<BladeEvent>()),
             );
     }
 }
@@ -78,14 +91,15 @@ fn setup_projectiles(
     let sprite = SpriteBundle {
         texture: asset_server.load("Lasers/08.png"),
         sprite: Sprite {
-            custom_size: Some(Vec2::splat(3.)),
+            custom_size: Some(Vec2::splat(1.5)),
             ..default()
         },
-        transform: Transform {
-            translation: Vec3::new(10000., 10000., 3.),
-            scale: BALL_SIZE,
-            ..default()
-        },
+        transform: Transform::from_translation(Vec3::new(10000., 10000., 2.)),
+        // transform: Transform {
+        //     translation: Vec3::new(10000., 10000., 3.),
+        //     scale: BALL_SIZE,
+        //     ..default()
+        // },
         ..default()
     };
     // Spawn a bunch of projectiles.
@@ -96,6 +110,12 @@ fn setup_projectiles(
             .insert(Sleeping {
                 sleeping: true,
                 ..default()
+            })
+            .insert(Blade {
+                slash_dmg: 1.2,
+                bleed: 1.2,
+                length: 2.,
+                swing_speed: 1.2,
             })
             .insert(Projectile {
                 damage: 10.,
@@ -126,12 +146,19 @@ fn setup_projectiles(
     }
 }
 
+fn upgrade_weapon(keyboard_input: Res<Input<KeyCode>>, mut event_writer: EventWriter<BladeEvent>) {
+    if keyboard_input.just_pressed(KeyCode::B) {
+        event_writer.send(BladeEvent)
+    }
+}
+
 use std::time::{Duration, Instant};
 #[derive(Resource, Debug)]
 struct ShootingCooldown {
     last_shot_time: Instant,
     cooldown_duration: Duration,
 }
+
 fn shoot_projectile(
     mut projectile_query: Query<
         (
@@ -184,7 +211,8 @@ fn shoot_projectile(
                                 let d = (player_transform.translation.xy() - cursor_direction)
                                     .normalize();
                                 let proj_rotate = Quat::from_rotation_arc(-Vec3::Z, d.extend(0.));
-                                transform.rotation = proj_rotate;
+                                transform.rotation = player_transform.rotation;
+                                transform.rotate_local_z(-80.);
                                 // info!("AFTER {:?}", transform.rotation);
 
                                 cooldown.last_shot_time = current_time;
@@ -215,6 +243,44 @@ fn despawn_projectile(
                 *bullet_velocity = Velocity::zero();
                 transform.translation = Vec3::new(10000., 100000., -1.);
             }
+        }
+    }
+}
+
+fn apply_blade_event(
+    mut projectile_query: Query<
+        (
+            &mut ExternalImpulse,
+            &mut Sprite,
+            &mut Collider,
+            &mut Projectile,
+            &mut Transform,
+            &Blade,
+        ),
+        With<Blade>,
+    >,
+    cursor: Res<CursorInfo>,
+) {
+    for (
+        mut bullet_impulse,
+        mut sprite,
+        mut collider,
+        mut projectile_data,
+        mut bullet_transform,
+        blade,
+    ) in projectile_query.iter_mut()
+    {
+        bullet_impulse.torque_impulse += blade.swing_speed;
+        match sprite.custom_size {
+            Some(size) => {
+                projectile_data.damage += blade.slash_dmg;
+                sprite.custom_size = Some(Vec2::new(size.x * 1.2, size.y));
+                *collider = Collider::capsule_x(size.x * 0.2, 0.5);
+                let direction =
+                    (bullet_transform.translation.xy() - cursor.position().unwrap()).normalize();
+                bullet_transform.translation = direction.extend(1.);
+            }
+            _ => (),
         }
     }
 }

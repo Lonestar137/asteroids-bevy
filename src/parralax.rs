@@ -15,14 +15,6 @@ const NEBULA_ONE: &str = "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024
 const NEBULA_TWO: &str = "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024_mod2.png";
 const NEBULA_THREE: &str = "Large_1024x1024/Green Nebula/Green_Nebula_05-1024x1024_mod3.png";
 
-// const BACKGROUND: &str = "star_back.png";
-// const BACKGROUND_FRONT: &str = "star_front.png";
-// const BACKGROUND_MIDDLE: &str = "star_middle.png";
-
-// const BACKGROUND: &str = "cyberpunk_back.png";
-// const BACKGROUND_FRONT: &str = "cyberpunk_front.png";
-// const BACKGROUND_MIDDLE: &str = "cyberpunk_middle.png";
-
 pub struct ParallaxBackgroundPlugin;
 
 impl Plugin for ParallaxBackgroundPlugin {

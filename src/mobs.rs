@@ -45,15 +45,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn kill_on_contact(
     mut commands: Commands,
-    mut bullets: Query<(Entity, &mut Velocity, &Projectile), With<Projectile>>,
-    mut enemies: Query<(Entity, &mut Transform, &mut Enemy), With<Enemy>>,
+    mut bullets: Query<(Entity, &mut Velocity, &Projectile, &mut Transform), With<Projectile>>,
+    mut enemies: Query<(Entity, &mut Transform, &mut Enemy), (With<Enemy>, Without<Projectile>)>,
     mut contact_events: EventReader<CollisionEvent>,
     sound: Res<CollisionSound>,
     asset_server: Res<AssetServer>,
 ) {
     for contact_event in contact_events.read() {
         if let CollisionEvent::Started(entity1, entity2, _) = contact_event {
-            let bullet_entity = bullets.iter_mut().find(|(bullet_entity, _, _)| {
+            let bullet_entity = bullets.iter_mut().find(|(bullet_entity, _, _, _)| {
                 *bullet_entity == *entity1 || *bullet_entity == *entity2
             });
 
@@ -62,7 +62,7 @@ fn kill_on_contact(
             });
 
             if let (
-                Some((_, mut bullet_velocity, projectile_data)),
+                Some((_, mut bullet_velocity, projectile_data, mut bullet_transform)),
                 Some((enemy_entity, enemy_transform, mut enemy_data)),
             ) = (bullet_entity, enemy_entity)
             {
@@ -87,7 +87,10 @@ fn kill_on_contact(
                 // Apply ricochet effect to bullet
                 let bul_vel = bullet_velocity.linvel.dot(Vec2::new(0.0, 1.0)) * Vec2::new(0.0, 1.0);
                 bullet_velocity.linvel -= 2.0 * bul_vel;
+                let angle = bullet_velocity.linvel.y.atan2(bullet_velocity.linvel.x);
+                bullet_transform.rotation = Quat::from_rotation_z(angle);
 
+                let enemy_loc = enemy_transform.clone();
                 // Despawn enemy
                 // TODO replace with spawn pool
                 commands
@@ -100,7 +103,7 @@ fn kill_on_contact(
                             ..default()
                         },
                         // transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
-                        transform: enemy_transform.clone(),
+                        transform: enemy_loc,
                         ..default()
                     })
                     .insert(ExperienceShard(10.))
