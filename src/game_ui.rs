@@ -1,12 +1,19 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::player::Player;
+use crate::guns::Blade;
+use crate::player::{LevelUpEvent, Player};
 use bevy::a11y::accesskit::TextAlign;
+use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::reflect::Map;
 use bevy::time::Stopwatch;
 use bevy::utils::hashbrown::HashMap;
 use bevy_rapier2d::prelude::*;
+
+const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const HOVERED_PRESSED_BUTTON: Color = Color::rgb(0.25, 0.65, 0.25);
+const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 #[derive(Resource, Debug)]
 pub struct VelocityStorage(pub HashMap<Entity, Velocity>);
@@ -19,7 +26,22 @@ pub enum GameState {
     #[default]
     Playing,
     StartMenu,
+    LevelingUp,
 }
+
+#[derive(Component)]
+enum PauseButtons {
+    Resume,
+    Exit,
+}
+#[derive(Component)]
+enum LevelUpButtons {
+    OptionOne,
+    OptionTwo,
+    OptionThree,
+}
+#[derive(Component)]
+pub struct SelectedOption;
 
 pub struct GameInterfacePlugin;
 impl Plugin for GameInterfacePlugin {
@@ -32,7 +54,18 @@ impl Plugin for GameInterfacePlugin {
             )
             .add_systems(Update, save_velocity_system)
             .add_systems(OnEnter(GameState::Paused), setup_pause_menu)
-            .add_systems(OnExit(GameState::Paused), despawn_menu);
+            .add_systems(OnExit(GameState::Paused), despawn_menu)
+            .add_systems(OnEnter(GameState::LevelingUp), setup_levelup_menu)
+            .add_systems(
+                FixedUpdate,
+                (button_system, apply_pause_menu_button_system).run_if(in_state(GameState::Paused)),
+            )
+            .add_systems(
+                FixedUpdate,
+                (button_system, apply_pause_menu_button_system).run_if(in_state(GameState::Paused)),
+            );
+
+        // .run_if(on_event::<LevelUpEvent>())
     }
 }
 
@@ -202,7 +235,7 @@ fn save_velocity_system(
                         velocity_storage.0.get(&entity_id).unwrap_or(default_vel);
                     *velocity = *unpaused_velocity;
                 }
-                GameState::Paused => {
+                GameState::Paused | GameState::LevelingUp => {
                     // Save old force
                     velocity_storage.0.insert(entity_id, *velocity);
 
@@ -285,6 +318,9 @@ fn setup_pause_menu(mut commands: Commands) {
                 button_text_style.clone(),
             ));
         })
+        .insert(Interaction::default())
+        .insert(Button)
+        .insert(PauseButtons::Resume)
         .id();
 
     let settings_button = commands
@@ -295,6 +331,8 @@ fn setup_pause_menu(mut commands: Commands) {
                 button_text_style.clone(),
             ));
         })
+        .insert(Interaction::default())
+        .insert(Button)
         .id();
 
     let exit_button = commands
@@ -302,6 +340,9 @@ fn setup_pause_menu(mut commands: Commands) {
         .with_children(|parent| {
             parent.spawn(TextBundle::from_section("Exit", button_text_style.clone()));
         })
+        .insert(Interaction::default())
+        .insert(Button)
+        .insert(PauseButtons::Exit)
         .id();
 
     commands.entity(box_and_title).push_children(&[]);
@@ -319,4 +360,146 @@ fn despawn_menu(mut commands: Commands, query: Query<(Entity, &Name)>) {
             commands.entity(entity).despawn_recursive()
         }
     }
+}
+
+fn button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, Option<&SelectedOption>),
+        (Changed<Interaction>, With<Button>),
+    >,
+) {
+    for (interaction, mut color, selected) in interaction_query.iter_mut() {
+        *color = match (*interaction, selected) {
+            (Interaction::Pressed, _) | (Interaction::None, Some(_)) => PRESSED_BUTTON.into(),
+            (Interaction::Hovered, Some(_)) => HOVERED_PRESSED_BUTTON.into(),
+            (Interaction::Hovered, None) => HOVERED_BUTTON.into(),
+            (Interaction::None, None) => NORMAL_BUTTON.into(),
+        }
+    }
+}
+
+fn apply_pause_menu_button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, &PauseButtons),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut gamestate: ResMut<NextState<GameState>>,
+    mut event_writer: EventWriter<AppExit>,
+) {
+    for (interaction, mut color, selected) in interaction_query.iter_mut() {
+        match (*interaction, selected) {
+            (Interaction::Pressed, PauseButtons::Resume) => {
+                // stopwatch
+                gamestate.set(GameState::Playing)
+            }
+            (Interaction::Pressed, PauseButtons::Exit) => event_writer.send(AppExit),
+            (_, _) => (),
+        };
+    }
+}
+
+fn setup_levelup_menu(mut commands: Commands) {
+    let root = commands
+        .spawn((NodeBundle {
+            // give it a dark background for readability
+            // background_color: BackgroundColor(Color::BLACK.with_a(0.8)),
+            background_color: BackgroundColor(Color::MIDNIGHT_BLUE.with_a(0.9)),
+            // make it "always on top" by setting the Z index to maximum
+            // we want it to be displayed over all other UI
+            z_index: ZIndex::Global(i32::MAX),
+            style: Style {
+                position_type: PositionType::Absolute,
+                right: Val::Percent(20.),
+                left: Val::Percent(20.),
+                top: Val::Percent(10.),
+                bottom: Val::Percent(10.),
+                padding: UiRect::all(Val::Px(4.0)),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            ..Default::default()
+        },))
+        .insert(Name::new("PauseMenuRoot"))
+        .id();
+
+    let box_and_title = commands
+        .spawn(TextBundle {
+            text: Text::from_sections([TextSection {
+                value: "Level Up!".into(),
+                style: TextStyle {
+                    font_size: 32.0,
+                    color: Color::WHITE,
+                    ..default()
+                },
+            }]),
+            ..Default::default()
+        })
+        .insert(Name::new("LevelUpState"))
+        .id();
+
+    let button_style = Style {
+        // width: Val::Px(250.0),
+        // height: Val::Px(450.0),
+        width: Val::Auto,
+        height: Val::Auto,
+        margin: UiRect::all(Val::Px(20.0)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    };
+    let button_text_style = TextStyle {
+        font_size: 24.0,
+        ..default()
+    };
+
+    let normal_button: Color = Color::rgb(0.15, 0.15, 0.15);
+    let button = ButtonBundle {
+        style: button_style.clone(),
+        background_color: normal_button.into(),
+        ..default()
+    };
+
+    // TODO: randomize how the values into common, epic, legendary variants.
+    let blade_powerup = Blade {
+        slash_dmg: 1.2,
+        bleed: 1.2,
+        length: 2.,
+        swing_speed: 1.2,
+        pierce: 1.0,
+    };
+    // let powerups = vec![blade_powerup];
+
+    // commands.entity(root).push_children(&[box_and_title]);
+    for i in 0..3 {
+        // TODO: randomly select powerups to show.
+        let powerup = blade_powerup.clone();
+        let button = commands
+            .spawn(button.clone())
+            .with_children(|parent| {
+                parent.spawn(TextBundle::from_section(
+                    format!("{:?}", powerup),
+                    button_text_style.clone(),
+                ));
+            })
+            .insert(Interaction::default())
+            .insert(Button)
+            .insert(Name::new(format!("LevelUpOption_{}", i)))
+            .id();
+
+        commands.entity(button).push_children(&[]);
+        commands.entity(root).push_children(&[button]);
+    }
+}
+
+fn apply_levelup_menu_button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, &Name),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut gamestate: ResMut<NextState<GameState>>,
+    mut event_writer: EventWriter<AppExit>,
+) {
+    for (interaction, mut color, name) in interaction_query.iter_mut() {}
 }

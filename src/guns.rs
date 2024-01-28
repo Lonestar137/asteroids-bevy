@@ -10,7 +10,7 @@ use bevy_rapier2d::prelude::*;
 use rand::{thread_rng, Rng};
 use std::iter::Empty;
 
-const COOLDOWN_DURATION_MS: u64 = 200;
+const COOLDOWN_DURATION_MS: u64 = 100;
 pub const PROJECTILE_LIMIT: i32 = 40;
 pub const BALL_SIZE: Vec3 = Vec3::splat(30.);
 
@@ -41,18 +41,27 @@ pub struct Burn {
     dot: f32,
     trail_length: f32,
 }
-#[derive(Component)]
+#[derive(Component, Debug, Clone)]
 pub struct Blade {
-    slash_dmg: f32,
-    bleed: f32,
-    length: f32,
-    swing_speed: f32,
+    pub slash_dmg: f32,
+    pub bleed: f32,
+    pub length: f32,
+    pub swing_speed: f32,
+    pub pierce: f32,
+}
+#[derive(Component)]
+pub struct Tracking {
+    pull_strength: f32,
+    damage_modifier: f32, // reduce damage by %
 }
 #[derive(Component)]
 pub struct Emp {
     stun_length: f32,
     shield_damage: f32,
 }
+// TODO: minion flocking.
+#[derive(Component)]
+pub struct PlayerBoyd {}
 
 pub struct WeaponPlugin;
 impl Plugin for WeaponPlugin {
@@ -116,6 +125,7 @@ fn setup_projectiles(
                 bleed: 1.2,
                 length: 2.,
                 swing_speed: 1.2,
+                pierce: 1.0,
             })
             .insert(Projectile {
                 damage: 10.,
@@ -212,7 +222,11 @@ fn shoot_projectile(
                                     .normalize();
                                 let proj_rotate = Quat::from_rotation_arc(-Vec3::Z, d.extend(0.));
                                 transform.rotation = player_transform.rotation;
-                                transform.rotate_local_z(-80.);
+                                // transform.rotate_local_z(-80.);
+                                // transform.rotate_z(-80.);
+                                transform.rotate_z(1.5);
+                                // transform.rotation = proj_rotate;
+
                                 // info!("AFTER {:?}", transform.rotation);
 
                                 cooldown.last_shot_time = current_time;
@@ -284,3 +298,6 @@ fn apply_blade_event(
         }
     }
 }
+
+// TODO: adjust the size of projectiles based on VELOCITY
+// TODO: Blade should have a pierce, if pierce > object armor then it sticks, otherwise ricochets.

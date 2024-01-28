@@ -95,11 +95,12 @@ fn kill_on_contact(
                 // TODO replace with spawn pool
                 commands
                     .spawn(SpriteBundle {
-                        texture: asset_server.load("./xp1.png"),
+                        // texture: asset_server.load("./xp1.png"),
+                        texture: asset_server.load("./xp2.png"),
                         sprite: Sprite {
                             // color: Color::rgb(0.25, 0.25, 0.75),
                             color: Color::rgb(1.2, 1.2, 1.2),
-                            custom_size: Some(Vec2::new(50.0, 50.0)),
+                            custom_size: Some(Vec2::splat(20.)),
                             ..default()
                         },
                         // transform: Transform::from_translation(Vec3::new(100., 400., 2.)),
@@ -109,12 +110,12 @@ fn kill_on_contact(
                     .insert(ExperienceShard(10.))
                     .insert(ExternalImpulse {
                         impulse: Vec2::ZERO,
-                        torque_impulse: 0.07,
+                        torque_impulse: 5.00,
                     })
                     .insert(Warpable)
                     .insert(RigidBody::Dynamic)
                     .insert(Damping {
-                        linear_damping: 0.5,
+                        linear_damping: 0.2,
                         angular_damping: 0.0,
                     })
                     .insert(Sensor)
@@ -137,6 +138,7 @@ fn exp_pull_system(
     mut shards: Query<(Entity, &Transform, &mut Velocity, &ExperienceShard), With<ExperienceShard>>,
     mut player: Query<(&Transform, &mut Player), (With<Player>, Without<ExperienceShard>)>,
     mut event_writer: EventWriter<LevelUpEvent>,
+    mut gamestate: ResMut<NextState<GameState>>,
 ) {
     let exp_pull_range: f32 = BASE_EXP_PULL;
     let exp_absorb_range: f32 = 40.;
@@ -154,13 +156,12 @@ fn exp_pull_system(
         if distance < exp_absorb_range {
             player_data.exp_current += shard_data.0;
             if player_data.exp_current > player_data.exp_max {
-                info!("LEVEL UP {:?}", player_data.level);
                 event_writer.send(LevelUpEvent);
+                gamestate.set(GameState::LevelingUp);
                 player_data.level += 1;
                 player_data.exp_max = player_data.exp_max * 1.2;
             }
             commands.entity(shard_entity).despawn_recursive();
-            debug!("Absorbed EXP!");
         }
     }
 }

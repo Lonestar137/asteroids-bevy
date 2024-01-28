@@ -5,11 +5,13 @@ use asteroids_bevy::parralax::ParallaxBackgroundPlugin;
 use asteroids_bevy::player::PlayerPlugin;
 
 use bevy::input::keyboard::KeyboardInput;
+use bevy::sprite::MaterialMesh2dBundle;
 use bevy::time::Stopwatch;
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
+use bevy_cursor::prelude::*;
 use bevy_hanabi::HanabiPlugin;
 // use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_rapier2d::prelude::*;

@@ -1,6 +1,9 @@
 use crate::game_ui::{GameRuntime, GameState};
 
-use bevy::prelude::*;
+use bevy::{
+    core_pipeline::bloom::{BloomCompositeMode, BloomSettings},
+    prelude::*,
+};
 use bevy_parallax::{
     CreateParallaxEvent, LayerData, LayerRepeat, LayerSpeed, ParallaxCameraComponent,
     ParallaxMoveEvent, ParallaxPlugin, ParallaxSystems, RepeatStrategy,
@@ -37,8 +40,19 @@ pub fn initialize_camera_system(
     mut create_parallax: EventWriter<CreateParallaxEvent>,
 ) {
     let camera = commands
-        .spawn(Camera2dBundle::default())
+        .spawn(Camera2dBundle {
+            camera: Camera {
+                hdr: true,
+                ..default()
+            },
+            ..default()
+        })
         .insert(ParallaxCameraComponent::default())
+        .insert(BloomSettings {
+            composite_mode: BloomCompositeMode::EnergyConserving,
+            intensity: 0.35,
+            ..default()
+        })
         .id();
     create_parallax.send(CreateParallaxEvent {
         layers_data: vec![
