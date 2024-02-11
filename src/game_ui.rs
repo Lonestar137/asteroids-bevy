@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::guns::Blade;
+use crate::guns::{Blade, BladeEvent};
 use crate::player::{LevelUpEvent, Player};
 use bevy::a11y::accesskit::TextAlign;
 use bevy::app::AppExit;
@@ -55,17 +55,17 @@ impl Plugin for GameInterfacePlugin {
             .add_systems(Update, save_velocity_system)
             .add_systems(OnEnter(GameState::Paused), setup_pause_menu)
             .add_systems(OnExit(GameState::Paused), despawn_menu)
+            .add_systems(OnExit(GameState::LevelingUp), despawn_menu)
             .add_systems(OnEnter(GameState::LevelingUp), setup_levelup_menu)
             .add_systems(
                 FixedUpdate,
-                (button_system, apply_pause_menu_button_system).run_if(in_state(GameState::Paused)),
+                (apply_levelup_menu_button_system, button_system)
+                    .run_if(in_state(GameState::LevelingUp)),
             )
             .add_systems(
                 FixedUpdate,
                 (button_system, apply_pause_menu_button_system).run_if(in_state(GameState::Paused)),
             );
-
-        // .run_if(on_event::<LevelUpEvent>())
     }
 }
 
@@ -483,6 +483,7 @@ fn setup_levelup_menu(mut commands: Commands) {
                     button_text_style.clone(),
                 ));
             })
+            .insert(blade_powerup.clone())
             .insert(Interaction::default())
             .insert(Button)
             .insert(Name::new(format!("LevelUpOption_{}", i)))
@@ -494,12 +495,24 @@ fn setup_levelup_menu(mut commands: Commands) {
 }
 
 fn apply_levelup_menu_button_system(
+    mut commands: Commands,
     mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, &Name),
+        (Entity, &Interaction, &Name),
         (Changed<Interaction>, With<Button>),
     >,
     mut gamestate: ResMut<NextState<GameState>>,
-    mut event_writer: EventWriter<AppExit>,
+    mut event_writer: EventWriter<BladeEvent>,
 ) {
-    for (interaction, mut color, name) in interaction_query.iter_mut() {}
+    for (entity, interaction, name) in interaction_query.iter_mut() {
+        match (entity, *interaction, name) {
+            (entity, Interaction::Pressed, name) => {
+                event_writer.send(BladeEvent);
+                gamestate.set(GameState::Playing);
+                // commands.entity(entity).despawn_recursive()
+
+                // if name == "menuitem name" do the thing
+            }
+            (_, _, _) => (),
+        }
+    }
 }
