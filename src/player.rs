@@ -1,7 +1,4 @@
-use crate::constants::*;
-use crate::game_ui::{GameInterfacePlugin, GameRuntime, GameState};
-use crate::guns::{Projectile, WeaponPlugin, BALL_SIZE};
-use crate::mobs::Enemy;
+use crate::prelude::*;
 
 use bevy::ecs::system::ParamSet;
 use bevy::prelude::*;
@@ -235,6 +232,7 @@ fn handle_player_collision(
     mut player: Query<(Entity, &mut Player)>,
     mut enemies: Query<(Entity, &mut Enemy), With<Enemy>>,
     mut contact_events: EventReader<CollisionEvent>,
+    mut gamestate: ResMut<NextState<GameState>>,
 ) {
     for contact_event in contact_events.read() {
         if let CollisionEvent::Started(entity1, entity2, x) = contact_event {
@@ -252,10 +250,11 @@ fn handle_player_collision(
                 // enemy_data.health -= player_data.collision_damage;
                 player_data.health_current -= enemy_data.collision_damage;
                 if player_data.health_current < 0. {
-                    info!("Deleting entity. {:?}", enemy_entity);
+                    info!("Player is dead {:?}", enemy_entity);
                     // TODO: end the game.
                     commands.entity(player_entity).remove::<Visibility>();
                     commands.entity(player_entity).insert(Visibility::Hidden);
+                    gamestate.set(GameState::Paused);
                     // commands.entity(player_entity).despawn_recursive();
                 }
             }

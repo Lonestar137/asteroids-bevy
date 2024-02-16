@@ -1,8 +1,4 @@
-use asteroids_bevy::constants::{WH, WW};
-use asteroids_bevy::game_ui::{GameRuntime, GameState};
-use asteroids_bevy::mobs::MobPlugin;
-use asteroids_bevy::parralax::ParallaxBackgroundPlugin;
-use asteroids_bevy::player::PlayerPlugin;
+use asteroids_bevy::prelude::*;
 
 use bevy::input::keyboard::KeyboardInput;
 use bevy::sprite::MaterialMesh2dBundle;

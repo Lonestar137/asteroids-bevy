@@ -1,7 +1,5 @@
-use std::ops::{Deref, DerefMut};
+use crate::prelude::*;
 
-use crate::guns::{Blade, BladeEvent};
-use crate::player::{LevelUpEvent, Player};
 use bevy::a11y::accesskit::TextAlign;
 use bevy::app::AppExit;
 use bevy::prelude::*;
@@ -9,6 +7,7 @@ use bevy::reflect::Map;
 use bevy::time::Stopwatch;
 use bevy::utils::hashbrown::HashMap;
 use bevy_rapier2d::prelude::*;
+use std::ops::{Deref, DerefMut};
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
@@ -17,6 +16,9 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 #[derive(Resource, Debug)]
 pub struct VelocityStorage(pub HashMap<Entity, Velocity>);
+#[derive(Resource, Debug)]
+pub struct AvailablePowerups(pub HashMap<Entity, Velocity>);
+
 // Tracks elapsed time outside Paused state
 #[derive(Resource)]
 pub struct GameRuntime(pub Stopwatch);
@@ -47,6 +49,7 @@ pub struct GameInterfacePlugin;
 impl Plugin for GameInterfacePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(VelocityStorage(HashMap::new()))
+            .insert_resource(AvailablePowerups(HashMap::new()))
             .add_systems(PostStartup, setup_hud.run_if(in_state(GameState::Playing)))
             .add_systems(
                 FixedUpdate,

@@ -1,7 +1,4 @@
-use crate::constants::BASE_EXP_PULL;
-use crate::game_ui::{GameRuntime, GameState};
-use crate::guns::Projectile;
-use crate::player::{LevelUpEvent, Player, Warpable, WindowSize};
+use crate::prelude::*;
 
 use bevy::audio::Volume;
 use bevy::prelude::*;
@@ -125,7 +122,7 @@ fn kill_on_contact(
 
                 enemy_data.health -= projectile_data.damage;
                 if enemy_data.health < 0. {
-                    info!("Deleting entity. {:?}", enemy_entity);
+                    // info!("Deleting entity. {:?}", enemy_entity);
                     commands.entity(enemy_entity).despawn_recursive();
                 }
             }
