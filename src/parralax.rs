@@ -3,6 +3,7 @@ use crate::game_ui::{GameRuntime, GameState};
 use bevy::{
     core_pipeline::bloom::{BloomCompositeMode, BloomSettings},
     prelude::*,
+    render::camera::ScalingMode,
 };
 use bevy_parallax::{
     CreateParallaxEvent, LayerData, LayerRepeat, LayerSpeed, ParallaxCameraComponent,
@@ -43,6 +44,15 @@ pub fn initialize_camera_system(
         .spawn(Camera2dBundle {
             camera: Camera {
                 hdr: true,
+                ..default()
+            },
+            projection: OrthographicProjection {
+                scaling_mode: ScalingMode::AutoMax {
+                    max_width: 1920.,
+                    max_height: 1080.,
+                },
+                far: 1000.,
+                near: -1000.,
                 ..default()
             },
             ..default()

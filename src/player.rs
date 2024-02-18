@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 use bevy::ecs::system::ParamSet;
 use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
 use bevy::{
     core_pipeline::{
         bloom::BloomSettings, clear_color::ClearColorConfig, tonemapping::Tonemapping,
@@ -13,6 +14,7 @@ use bevy::{
 };
 use bevy_cursor::prelude::*;
 use bevy_hanabi::prelude::*;
+use bevy_rapier2d::na::Projective2;
 use bevy_rapier2d::prelude::*;
 use std::time::{Duration, Instant}; // TODO: https://bevy-cheatbook.github.io/pitfalls/time.html
 
@@ -179,10 +181,12 @@ fn update_winsize(
 ) {
     for _ in resize_event.read() {
         let primary_window = window_query.single();
-        win_size.left_wall = -primary_window.width() / 2.;
-        win_size.right_wall = primary_window.width() / 2.;
-        win_size.bottom_wall = -primary_window.height() / 2.;
-        win_size.top_wall = primary_window.height() / 2.;
+        let scale = primary_window.scale_factor() as f32; // Ratio of physical size to logical size,
+        win_size.left_wall = -primary_window.width() / 2. * scale;
+        win_size.right_wall = primary_window.width() / 2. * scale;
+        win_size.bottom_wall = -primary_window.height() / 2. * scale;
+        win_size.top_wall = primary_window.height() / 2. * scale;
+
         debug!("Window Resized:");
         debug!("  Width {:?}", primary_window.width());
         debug!("  Height {:?}", primary_window.height());
@@ -213,10 +217,8 @@ fn ship_warp(
         let y_pad = size.y * 0.9;
 
         if xy.y > camera_transform.translation.y + top_wall + y_pad {
-            // works
             transform.translation.y = camera_transform.translation.y + bottom_wall;
         } else if xy.y < camera_transform.translation.y + bottom_wall - y_pad {
-            // works
             transform.translation.y = camera_transform.translation.y + top_wall;
         } else if xy.x > camera_transform.translation.x + right_wall + x_pad {
             transform.translation.x = camera_transform.translation.x + left_wall;
